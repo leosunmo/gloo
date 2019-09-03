@@ -1,0 +1,92 @@
+syntax = "proto3";
+package gloo.solo.io;
+option go_package = "github.com/solo-io/gloo/projects/gloo/pkg/api/v1";
+
+import "validate/validate.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/duration.proto";
+
+option (gogoproto.equal_all) = true;
+
+/*
+    Envoy cluster health check configuration
+
+    See [envoy docs](https://www.envoyproxy.io/docs/envoy/v1.11.0/intro/arch_overview/upstream/health_checking#arch-overview-health-checking) for more information on how health checks work in envoy
+    Or examine the [config definition](https://www.envoyproxy.io/docs/envoy/v1.11.0/api-v2/api/v2/core/health_check.proto#envoy-api-msg-core-healthcheck).
+*/
+message HealthCheckConfig {
+
+    google.protobuf.Duration timeout = 1 [(gogoproto.stdduration) = true];
+
+    google.protobuf.Duration interval = 2 [(gogoproto.stdduration) = true];
+
+    message HttpHealthCheck {
+        // The value of the host header in the HTTP health check request. If
+        // left empty (default value), the name of the cluster this health check is associated
+        // with will be used.
+        string host = 1;
+
+        // Specifies the HTTP path that will be requested during health checking. For example
+        // */healthcheck*.
+        string path = 2 [(validate.rules).string.min_bytes = 1];
+
+        // If set, health checks will be made using http/2.
+        bool use_http2 = 7;
+    }
+
+    message Payload {
+        oneof payload {
+            option (validate.required) = true;
+
+            // Hex encoded payload. E.g., "000000FF".
+            string text = 1 [(validate.rules).string.min_bytes = 1];
+
+            // [#not-implemented-hide:] Binary payload.
+            bytes binary = 2;
+        }
+    }
+
+    message TcpHealthCheck {
+        // Empty payloads imply a connect-only health check.
+        Payload send = 1;
+
+        // When checking the response, “fuzzy” matching is performed such that each
+        // binary block must be found, and in the order specified, but not
+        // necessarily contiguous.
+        repeated Payload receive = 2;
+    }
+
+
+    // `grpc.health.v1.Health
+    // <https://github.com/grpc/grpc/blob/master/src/proto/grpc/health/v1/health.proto>`_-based
+    // healthcheck. See `gRPC doc <https://github.com/grpc/grpc/blob/master/doc/health-checking.md>`_
+    // for details.
+    message GrpcHealthCheck {
+        // An optional service name parameter which will be sent to gRPC service in
+        // `grpc.health.v1.HealthCheckRequest
+        // <https://github.com/grpc/grpc/blob/master/src/proto/grpc/health/v1/health.proto#L20>`_.
+        // message. See `gRPC health-checking overview
+        // <https://github.com/grpc/grpc/blob/master/doc/health-checking.md>`_ for more information.
+        string service_name = 1;
+
+        // The value of the :authority header in the gRPC health check request. If
+        // left empty (default value), the name of the cluster this health check is associated
+        // with will be used.
+        string authority = 2;
+    }
+
+    oneof health_checker {
+        option (validate.required) = true;
+
+        // HTTP health check.
+        HttpHealthCheck http_health_check = 8;
+
+        // TCP health check.
+        TcpHealthCheck tcp_health_check = 9;
+
+        // gRPC health check.
+        GrpcHealthCheck grpc_health_check = 11;
+    }
+
+}
