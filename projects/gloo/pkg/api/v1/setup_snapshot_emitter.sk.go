@@ -153,7 +153,7 @@ func (c *setupEmitter) Snapshots(watchNamespaces []string, opts clients.WatchOpt
 		snapshots <- &initialSnapshot
 
 		timer := time.NewTicker(time.Second * 1)
-		previousHash := currentSnapshot.Hash()
+		var previousHash uint64
 		sync := func() {
 			currentHash := currentSnapshot.Hash()
 			if previousHash == currentHash {
