@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	types "github.com/gogo/protobuf/types"
+	"github.com/gogo/protobuf/types"
 	"github.com/solo-io/gloo/pkg/utils"
 	gatewayv1 "github.com/solo-io/gloo/projects/gateway/pkg/api/v1"
-	grpc "github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/grpc"
-	transformation "github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/transformation"
+	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/grpc"
+	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/transformation"
 	"github.com/solo-io/gloo/test/services"
 	"github.com/solo-io/gloo/test/v1helpers"
 	glootest "github.com/solo-io/gloo/test/v1helpers/test_grpc_service/glootest/protos"
@@ -26,7 +26,7 @@ import (
 	"github.com/solo-io/gloo/projects/gloo/pkg/defaults"
 )
 
-var _ = Describe("GRPC Plugin", func() {
+var _ = FDescribe("GRPC Plugin", func() {
 	var (
 		ctx            context.Context
 		cancel         context.CancelFunc
@@ -116,6 +116,52 @@ var _ = Describe("GRPC Plugin", func() {
 
 		vs := getGrpcVs()
 		_, err := testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
+		Expect(err).NotTo(HaveOccurred())
+
+		body := []byte(`{"str": "foo"}`)
+
+		testRequest := func() (string, error) {
+			// send a request with a body
+			var buf bytes.Buffer
+			buf.Write(body)
+			res, err := http.Post(fmt.Sprintf("http://%s:%d/test", "localhost", defaults.HttpPort), "application/json", &buf)
+			if err != nil {
+				return "", err
+			}
+			defer res.Body.Close()
+			body, err := ioutil.ReadAll(res.Body)
+			return string(body), err
+		}
+
+		Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
+
+		Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
+			"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
+		}))))
+	})
+
+	It("Grpc Health Checks", func() {
+
+		vs := getGrpcVs()
+		_, err := testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
+		Expect(err).NotTo(HaveOccurred())
+
+		us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
+		Expect(err).NotTo(HaveOccurred())
+
+		us.GetUpstreamSpec().HealthChecks = []*gloov1.HealthCheckConfig{
+			{
+				HealthChecker: &gloov1.HealthCheckConfig_GrpcHealthCheck_{
+					GrpcHealthCheck: &gloov1.HealthCheckConfig_GrpcHealthCheck{
+						ServiceName: "TestService",
+					},
+				},
+			},
+		}
+
+		_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
+			OverwriteExisting: true,
+		})
 		Expect(err).NotTo(HaveOccurred())
 
 		body := []byte(`{"str": "foo"}`)

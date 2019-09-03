@@ -146,21 +146,22 @@ message UpstreamSpec {
     LoadBalancerConfig load_balancer_config = 3;
     ConnectionConfig connection_config = 4;
     repeated HealthCheckConfig health_checks = 5;
+    OutlierDetection outlier_detection = 6;
 
     // Use http2 when communicating with this upstream
     // this field is evaluated `true` for upstreams
     // with a grpc service spec
-    bool use_http2 = 6;
+    bool use_http2 = 7;
 
     // Note to developers: new Upstream Plugins must be added to this oneof field
     // to be usable by Gloo.
     oneof upstream_type {
-        kubernetes.plugins.gloo.solo.io.UpstreamSpec kube = 7;
-        static.plugins.gloo.solo.io.UpstreamSpec static = 8;
-        pipe.plugins.gloo.solo.io.UpstreamSpec pipe = 9;
-        aws.plugins.gloo.solo.io.UpstreamSpec aws = 10;
-        azure.plugins.gloo.solo.io.UpstreamSpec azure = 11;
-        consul.plugins.gloo.solo.io.UpstreamSpec consul = 12;
-        aws_ec2.plugins.gloo.solo.io.UpstreamSpec aws_ec2 = 13;
+        kubernetes.plugins.gloo.solo.io.UpstreamSpec kube = 8;
+        static.plugins.gloo.solo.io.UpstreamSpec static = 9;
+        pipe.plugins.gloo.solo.io.UpstreamSpec pipe = 10;
+        aws.plugins.gloo.solo.io.UpstreamSpec aws = 11;
+        azure.plugins.gloo.solo.io.UpstreamSpec azure = 12;
+        consul.plugins.gloo.solo.io.UpstreamSpec consul = 13;
+        aws_ec2.plugins.gloo.solo.io.UpstreamSpec aws_ec2 = 14;
     }
 }

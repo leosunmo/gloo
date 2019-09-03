@@ -1,9 +1,12 @@
 package translator
 
 import (
+	"time"
+
 	envoyapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	envoycluster "github.com/envoyproxy/go-control-plane/envoy/api/v2/cluster"
 	envoycore "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	"github.com/gogo/protobuf/types"
 
 	"github.com/pkg/errors"
 	v1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
@@ -72,6 +75,14 @@ func (t *translator) initializeCluster(upstream *v1.Upstream, endpoints []*v1.En
 	return out
 }
 
+var (
+	defaultHealthCheckTimeout  = time.Second * 5
+	defaultHealthCheckInterval = time.Millisecond * 100
+	defaultThreshold           = &types.UInt32Value{
+		Value: 5,
+	}
+)
+
 func createHealthCheckConfig(upstream *v1.Upstream) []*envoycore.HealthCheck {
 	var result []*envoycore.HealthCheck
 	if upstream.GetUpstreamSpec() == nil {
@@ -80,8 +91,23 @@ func createHealthCheckConfig(upstream *v1.Upstream) []*envoycore.HealthCheck {
 	for _, hc := range upstream.GetUpstreamSpec().GetHealthChecks() {
 
 		translatedHc := &envoycore.HealthCheck{
-			Timeout:  hc.GetTimeout(),
-			Interval: hc.GetInterval(),
+			Timeout:            hc.GetTimeout(),
+			Interval:           hc.GetInterval(),
+			UnhealthyThreshold: hc.GetUnhealthyThreshold(),
+			HealthyThreshold:   hc.GetUnhealthyThreshold(),
+		}
+
+		if translatedHc.GetTimeout() == nil {
+			translatedHc.Timeout = &defaultHealthCheckTimeout
+		}
+		if translatedHc.GetInterval() == nil {
+			translatedHc.Interval = &defaultHealthCheckInterval
+		}
+		if translatedHc.HealthyThreshold == nil {
+			translatedHc.HealthyThreshold = defaultThreshold
+		}
+		if translatedHc.UnhealthyThreshold == nil {
+			translatedHc.UnhealthyThreshold = defaultThreshold
 		}
 
 		switch healthChecker := hc.GetHealthChecker().(type) {
