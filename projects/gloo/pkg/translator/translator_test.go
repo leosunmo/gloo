@@ -3,7 +3,9 @@ package translator_test
 import (
 	"context"
 	"fmt"
+	"time"
 
+	envoycore "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	envoyrouteapi "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	envoytcp "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/tcp_proxy/v2"
 	"github.com/gogo/protobuf/proto"
@@ -52,6 +54,7 @@ var _ = Describe("Translator", func() {
 		settings          *v1.Settings
 		translator        Translator
 		upstream          *v1.Upstream
+		upName            core.Metadata
 		proxy             *v1.Proxy
 		params            plugins.Params
 		registeredPlugins []plugins.Plugin
@@ -82,7 +85,7 @@ var _ = Describe("Translator", func() {
 		}
 		registeredPlugins = registry.Plugins(opts)
 
-		upName := core.Metadata{
+		upName = core.Metadata{
 			Name:      "test",
 			Namespace: "gloo-system",
 		}
@@ -329,6 +332,88 @@ var _ = Describe("Translator", func() {
 			Expect(headerMatch.Name).To(Equal("test"))
 			regex := headerMatch.GetRegexMatch()
 			Expect(regex).To(Equal("testvalue"))
+		})
+
+	})
+
+	Context("Health check config", func() {
+
+		var (
+			defaultTimeout  = time.Duration(100)
+			defaultInterval = time.Duration(200)
+		)
+
+		It("will return nothing if type isn't set", func() {
+			upstream.UpstreamSpec.HealthChecks = []*v1.HealthCheckConfig{
+				{
+					Timeout:  &defaultTimeout,
+					Interval: &defaultInterval,
+				},
+			}
+			translate()
+			Expect(cluster.HealthChecks).To(BeNil())
+		})
+
+		It("can translate the http health check", func() {
+			expectedResult := []*envoycore.HealthCheck{
+				{
+					Timeout:  &defaultTimeout,
+					Interval: &defaultInterval,
+					HealthChecker: &envoycore.HealthCheck_HttpHealthCheck_{
+						HttpHealthCheck: &envoycore.HealthCheck_HttpHealthCheck{
+							Host:        "host",
+							Path:        "path",
+							ServiceName: "svc",
+							UseHttp2:    true,
+						},
+					},
+				},
+			}
+			upstream.UpstreamSpec.HealthChecks = []*v1.HealthCheckConfig{
+				{
+					Timeout:  &defaultTimeout,
+					Interval: &defaultInterval,
+					HealthChecker: &v1.HealthCheckConfig_HttpHealthCheck_{
+						HttpHealthCheck: &v1.HealthCheckConfig_HttpHealthCheck{
+							Host:        "host",
+							Path:        "path",
+							ServiceName: "svc",
+							UseHttp2:    true,
+						},
+					},
+				},
+			}
+			translate()
+			Expect(cluster.HealthChecks).To(BeEquivalentTo(expectedResult))
+		})
+
+		It("can translate the grpc health check", func() {
+			expectedResult := []*envoycore.HealthCheck{
+				{
+					Timeout:  &defaultTimeout,
+					Interval: &defaultInterval,
+					HealthChecker: &envoycore.HealthCheck_GrpcHealthCheck_{
+						GrpcHealthCheck: &envoycore.HealthCheck_GrpcHealthCheck{
+							ServiceName: "svc",
+							Authority:   "authority",
+						},
+					},
+				},
+			}
+			upstream.UpstreamSpec.HealthChecks = []*v1.HealthCheckConfig{
+				{
+					Timeout:  &defaultTimeout,
+					Interval: &defaultInterval,
+					HealthChecker: &v1.HealthCheckConfig_GrpcHealthCheck_{
+						GrpcHealthCheck: &v1.HealthCheckConfig_GrpcHealthCheck{
+							ServiceName: "svc",
+							Authority:   "authority",
+						},
+					},
+				},
+			}
+			translate()
+			Expect(cluster.HealthChecks).To(BeEquivalentTo(expectedResult))
 		})
 
 	})
