@@ -31,32 +31,14 @@ message HealthCheckConfig {
         // */healthcheck*.
         string path = 2 [(validate.rules).string.min_bytes = 1];
 
+        // An optional service name parameter which is used to validate the identity of
+        // the health checked cluster. See the :ref:`architecture overview
+        // <arch_overview_health_checking_identity>` for more information.
+        string service_name = 5;
+
         // If set, health checks will be made using http/2.
         bool use_http2 = 7;
     }
-
-    message Payload {
-        oneof payload {
-            option (validate.required) = true;
-
-            // Hex encoded payload. E.g., "000000FF".
-            string text = 1 [(validate.rules).string.min_bytes = 1];
-
-            // [#not-implemented-hide:] Binary payload.
-            bytes binary = 2;
-        }
-    }
-
-    message TcpHealthCheck {
-        // Empty payloads imply a connect-only health check.
-        Payload send = 1;
-
-        // When checking the response, “fuzzy” matching is performed such that each
-        // binary block must be found, and in the order specified, but not
-        // necessarily contiguous.
-        repeated Payload receive = 2;
-    }
-
 
     // `grpc.health.v1.Health
     // <https://github.com/grpc/grpc/blob/master/src/proto/grpc/health/v1/health.proto>`_-based
@@ -81,9 +63,6 @@ message HealthCheckConfig {
 
         // HTTP health check.
         HttpHealthCheck http_health_check = 8;
-
-        // TCP health check.
-        TcpHealthCheck tcp_health_check = 9;
 
         // gRPC health check.
         GrpcHealthCheck grpc_health_check = 11;

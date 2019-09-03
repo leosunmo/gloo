@@ -37,7 +37,6 @@ type HealthCheckConfig struct {
 	Interval *time.Duration `protobuf:"bytes,2,opt,name=interval,proto3,stdduration" json:"interval,omitempty"`
 	// Types that are valid to be assigned to HealthChecker:
 	//	*HealthCheckConfig_HttpHealthCheck_
-	//	*HealthCheckConfig_TcpHealthCheck_
 	//	*HealthCheckConfig_GrpcHealthCheck_
 	HealthChecker        isHealthCheckConfig_HealthChecker `protobuf_oneof:"health_checker"`
 	XXX_NoUnkeyedLiteral struct{}                          `json:"-"`
@@ -77,15 +76,11 @@ type isHealthCheckConfig_HealthChecker interface {
 type HealthCheckConfig_HttpHealthCheck_ struct {
 	HttpHealthCheck *HealthCheckConfig_HttpHealthCheck `protobuf:"bytes,8,opt,name=http_health_check,json=httpHealthCheck,proto3,oneof"`
 }
-type HealthCheckConfig_TcpHealthCheck_ struct {
-	TcpHealthCheck *HealthCheckConfig_TcpHealthCheck `protobuf:"bytes,9,opt,name=tcp_health_check,json=tcpHealthCheck,proto3,oneof"`
-}
 type HealthCheckConfig_GrpcHealthCheck_ struct {
 	GrpcHealthCheck *HealthCheckConfig_GrpcHealthCheck `protobuf:"bytes,11,opt,name=grpc_health_check,json=grpcHealthCheck,proto3,oneof"`
 }
 
 func (*HealthCheckConfig_HttpHealthCheck_) isHealthCheckConfig_HealthChecker() {}
-func (*HealthCheckConfig_TcpHealthCheck_) isHealthCheckConfig_HealthChecker()  {}
 func (*HealthCheckConfig_GrpcHealthCheck_) isHealthCheckConfig_HealthChecker() {}
 
 func (m *HealthCheckConfig) GetHealthChecker() isHealthCheckConfig_HealthChecker {
@@ -116,13 +111,6 @@ func (m *HealthCheckConfig) GetHttpHealthCheck() *HealthCheckConfig_HttpHealthCh
 	return nil
 }
 
-func (m *HealthCheckConfig) GetTcpHealthCheck() *HealthCheckConfig_TcpHealthCheck {
-	if x, ok := m.GetHealthChecker().(*HealthCheckConfig_TcpHealthCheck_); ok {
-		return x.TcpHealthCheck
-	}
-	return nil
-}
-
 func (m *HealthCheckConfig) GetGrpcHealthCheck() *HealthCheckConfig_GrpcHealthCheck {
 	if x, ok := m.GetHealthChecker().(*HealthCheckConfig_GrpcHealthCheck_); ok {
 		return x.GrpcHealthCheck
@@ -134,7 +122,6 @@ func (m *HealthCheckConfig) GetGrpcHealthCheck() *HealthCheckConfig_GrpcHealthCh
 func (*HealthCheckConfig) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
 	return _HealthCheckConfig_OneofMarshaler, _HealthCheckConfig_OneofUnmarshaler, _HealthCheckConfig_OneofSizer, []interface{}{
 		(*HealthCheckConfig_HttpHealthCheck_)(nil),
-		(*HealthCheckConfig_TcpHealthCheck_)(nil),
 		(*HealthCheckConfig_GrpcHealthCheck_)(nil),
 	}
 }
@@ -146,11 +133,6 @@ func _HealthCheckConfig_OneofMarshaler(msg proto.Message, b *proto.Buffer) error
 	case *HealthCheckConfig_HttpHealthCheck_:
 		_ = b.EncodeVarint(8<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.HttpHealthCheck); err != nil {
-			return err
-		}
-	case *HealthCheckConfig_TcpHealthCheck_:
-		_ = b.EncodeVarint(9<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.TcpHealthCheck); err != nil {
 			return err
 		}
 	case *HealthCheckConfig_GrpcHealthCheck_:
@@ -176,14 +158,6 @@ func _HealthCheckConfig_OneofUnmarshaler(msg proto.Message, tag, wire int, b *pr
 		err := b.DecodeMessage(msg)
 		m.HealthChecker = &HealthCheckConfig_HttpHealthCheck_{msg}
 		return true, err
-	case 9: // health_checker.tcp_health_check
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(HealthCheckConfig_TcpHealthCheck)
-		err := b.DecodeMessage(msg)
-		m.HealthChecker = &HealthCheckConfig_TcpHealthCheck_{msg}
-		return true, err
 	case 11: // health_checker.grpc_health_check
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
@@ -203,11 +177,6 @@ func _HealthCheckConfig_OneofSizer(msg proto.Message) (n int) {
 	switch x := m.HealthChecker.(type) {
 	case *HealthCheckConfig_HttpHealthCheck_:
 		s := proto.Size(x.HttpHealthCheck)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *HealthCheckConfig_TcpHealthCheck_:
-		s := proto.Size(x.TcpHealthCheck)
 		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(s))
 		n += s
@@ -231,6 +200,10 @@ type HealthCheckConfig_HttpHealthCheck struct {
 	// Specifies the HTTP path that will be requested during health checking. For example
 	// */healthcheck*.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// An optional service name parameter which is used to validate the identity of
+	// the health checked cluster. See the :ref:`architecture overview
+	// <arch_overview_health_checking_identity>` for more information.
+	ServiceName string `protobuf:"bytes,5,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	// If set, health checks will be made using http/2.
 	UseHttp2             bool     `protobuf:"varint,7,opt,name=use_http2,json=useHttp2,proto3" json:"use_http2,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -276,197 +249,18 @@ func (m *HealthCheckConfig_HttpHealthCheck) GetPath() string {
 	return ""
 }
 
+func (m *HealthCheckConfig_HttpHealthCheck) GetServiceName() string {
+	if m != nil {
+		return m.ServiceName
+	}
+	return ""
+}
+
 func (m *HealthCheckConfig_HttpHealthCheck) GetUseHttp2() bool {
 	if m != nil {
 		return m.UseHttp2
 	}
 	return false
-}
-
-type HealthCheckConfig_Payload struct {
-	// Types that are valid to be assigned to Payload:
-	//	*HealthCheckConfig_Payload_Text
-	//	*HealthCheckConfig_Payload_Binary
-	Payload              isHealthCheckConfig_Payload_Payload `protobuf_oneof:"payload"`
-	XXX_NoUnkeyedLiteral struct{}                            `json:"-"`
-	XXX_unrecognized     []byte                              `json:"-"`
-	XXX_sizecache        int32                               `json:"-"`
-}
-
-func (m *HealthCheckConfig_Payload) Reset()         { *m = HealthCheckConfig_Payload{} }
-func (m *HealthCheckConfig_Payload) String() string { return proto.CompactTextString(m) }
-func (*HealthCheckConfig_Payload) ProtoMessage()    {}
-func (*HealthCheckConfig_Payload) Descriptor() ([]byte, []int) {
-	return fileDescriptor_17ca67440953dae5, []int{0, 1}
-}
-func (m *HealthCheckConfig_Payload) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_HealthCheckConfig_Payload.Unmarshal(m, b)
-}
-func (m *HealthCheckConfig_Payload) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_HealthCheckConfig_Payload.Marshal(b, m, deterministic)
-}
-func (m *HealthCheckConfig_Payload) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_HealthCheckConfig_Payload.Merge(m, src)
-}
-func (m *HealthCheckConfig_Payload) XXX_Size() int {
-	return xxx_messageInfo_HealthCheckConfig_Payload.Size(m)
-}
-func (m *HealthCheckConfig_Payload) XXX_DiscardUnknown() {
-	xxx_messageInfo_HealthCheckConfig_Payload.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_HealthCheckConfig_Payload proto.InternalMessageInfo
-
-type isHealthCheckConfig_Payload_Payload interface {
-	isHealthCheckConfig_Payload_Payload()
-	Equal(interface{}) bool
-}
-
-type HealthCheckConfig_Payload_Text struct {
-	Text string `protobuf:"bytes,1,opt,name=text,proto3,oneof"`
-}
-type HealthCheckConfig_Payload_Binary struct {
-	Binary []byte `protobuf:"bytes,2,opt,name=binary,proto3,oneof"`
-}
-
-func (*HealthCheckConfig_Payload_Text) isHealthCheckConfig_Payload_Payload()   {}
-func (*HealthCheckConfig_Payload_Binary) isHealthCheckConfig_Payload_Payload() {}
-
-func (m *HealthCheckConfig_Payload) GetPayload() isHealthCheckConfig_Payload_Payload {
-	if m != nil {
-		return m.Payload
-	}
-	return nil
-}
-
-func (m *HealthCheckConfig_Payload) GetText() string {
-	if x, ok := m.GetPayload().(*HealthCheckConfig_Payload_Text); ok {
-		return x.Text
-	}
-	return ""
-}
-
-func (m *HealthCheckConfig_Payload) GetBinary() []byte {
-	if x, ok := m.GetPayload().(*HealthCheckConfig_Payload_Binary); ok {
-		return x.Binary
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*HealthCheckConfig_Payload) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _HealthCheckConfig_Payload_OneofMarshaler, _HealthCheckConfig_Payload_OneofUnmarshaler, _HealthCheckConfig_Payload_OneofSizer, []interface{}{
-		(*HealthCheckConfig_Payload_Text)(nil),
-		(*HealthCheckConfig_Payload_Binary)(nil),
-	}
-}
-
-func _HealthCheckConfig_Payload_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*HealthCheckConfig_Payload)
-	// payload
-	switch x := m.Payload.(type) {
-	case *HealthCheckConfig_Payload_Text:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		_ = b.EncodeStringBytes(x.Text)
-	case *HealthCheckConfig_Payload_Binary:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		_ = b.EncodeRawBytes(x.Binary)
-	case nil:
-	default:
-		return fmt.Errorf("HealthCheckConfig_Payload.Payload has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _HealthCheckConfig_Payload_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*HealthCheckConfig_Payload)
-	switch tag {
-	case 1: // payload.text
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Payload = &HealthCheckConfig_Payload_Text{x}
-		return true, err
-	case 2: // payload.binary
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeRawBytes(true)
-		m.Payload = &HealthCheckConfig_Payload_Binary{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _HealthCheckConfig_Payload_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*HealthCheckConfig_Payload)
-	// payload
-	switch x := m.Payload.(type) {
-	case *HealthCheckConfig_Payload_Text:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.Text)))
-		n += len(x.Text)
-	case *HealthCheckConfig_Payload_Binary:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.Binary)))
-		n += len(x.Binary)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
-type HealthCheckConfig_TcpHealthCheck struct {
-	// Empty payloads imply a connect-only health check.
-	Send *HealthCheckConfig_Payload `protobuf:"bytes,1,opt,name=send,proto3" json:"send,omitempty"`
-	// When checking the response, “fuzzy” matching is performed such that each
-	// binary block must be found, and in the order specified, but not
-	// necessarily contiguous.
-	Receive              []*HealthCheckConfig_Payload `protobuf:"bytes,2,rep,name=receive,proto3" json:"receive,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
-	XXX_unrecognized     []byte                       `json:"-"`
-	XXX_sizecache        int32                        `json:"-"`
-}
-
-func (m *HealthCheckConfig_TcpHealthCheck) Reset()         { *m = HealthCheckConfig_TcpHealthCheck{} }
-func (m *HealthCheckConfig_TcpHealthCheck) String() string { return proto.CompactTextString(m) }
-func (*HealthCheckConfig_TcpHealthCheck) ProtoMessage()    {}
-func (*HealthCheckConfig_TcpHealthCheck) Descriptor() ([]byte, []int) {
-	return fileDescriptor_17ca67440953dae5, []int{0, 2}
-}
-func (m *HealthCheckConfig_TcpHealthCheck) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_HealthCheckConfig_TcpHealthCheck.Unmarshal(m, b)
-}
-func (m *HealthCheckConfig_TcpHealthCheck) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_HealthCheckConfig_TcpHealthCheck.Marshal(b, m, deterministic)
-}
-func (m *HealthCheckConfig_TcpHealthCheck) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_HealthCheckConfig_TcpHealthCheck.Merge(m, src)
-}
-func (m *HealthCheckConfig_TcpHealthCheck) XXX_Size() int {
-	return xxx_messageInfo_HealthCheckConfig_TcpHealthCheck.Size(m)
-}
-func (m *HealthCheckConfig_TcpHealthCheck) XXX_DiscardUnknown() {
-	xxx_messageInfo_HealthCheckConfig_TcpHealthCheck.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_HealthCheckConfig_TcpHealthCheck proto.InternalMessageInfo
-
-func (m *HealthCheckConfig_TcpHealthCheck) GetSend() *HealthCheckConfig_Payload {
-	if m != nil {
-		return m.Send
-	}
-	return nil
-}
-
-func (m *HealthCheckConfig_TcpHealthCheck) GetReceive() []*HealthCheckConfig_Payload {
-	if m != nil {
-		return m.Receive
-	}
-	return nil
 }
 
 // `grpc.health.v1.Health
@@ -493,7 +287,7 @@ func (m *HealthCheckConfig_GrpcHealthCheck) Reset()         { *m = HealthCheckCo
 func (m *HealthCheckConfig_GrpcHealthCheck) String() string { return proto.CompactTextString(m) }
 func (*HealthCheckConfig_GrpcHealthCheck) ProtoMessage()    {}
 func (*HealthCheckConfig_GrpcHealthCheck) Descriptor() ([]byte, []int) {
-	return fileDescriptor_17ca67440953dae5, []int{0, 3}
+	return fileDescriptor_17ca67440953dae5, []int{0, 1}
 }
 func (m *HealthCheckConfig_GrpcHealthCheck) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_HealthCheckConfig_GrpcHealthCheck.Unmarshal(m, b)
@@ -530,8 +324,6 @@ func (m *HealthCheckConfig_GrpcHealthCheck) GetAuthority() string {
 func init() {
 	proto.RegisterType((*HealthCheckConfig)(nil), "gloo.solo.io.HealthCheckConfig")
 	proto.RegisterType((*HealthCheckConfig_HttpHealthCheck)(nil), "gloo.solo.io.HealthCheckConfig.HttpHealthCheck")
-	proto.RegisterType((*HealthCheckConfig_Payload)(nil), "gloo.solo.io.HealthCheckConfig.Payload")
-	proto.RegisterType((*HealthCheckConfig_TcpHealthCheck)(nil), "gloo.solo.io.HealthCheckConfig.TcpHealthCheck")
 	proto.RegisterType((*HealthCheckConfig_GrpcHealthCheck)(nil), "gloo.solo.io.HealthCheckConfig.GrpcHealthCheck")
 }
 
@@ -540,41 +332,35 @@ func init() {
 }
 
 var fileDescriptor_17ca67440953dae5 = []byte{
-	// 533 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x94, 0xc1, 0x6e, 0xd3, 0x30,
-	0x18, 0xc7, 0x9b, 0x36, 0xb4, 0xcd, 0xd7, 0xaa, 0xdd, 0x2c, 0xa4, 0x85, 0x00, 0x5b, 0xe1, 0xc2,
-	0x2e, 0x38, 0x50, 0x24, 0x24, 0xb4, 0x03, 0xa2, 0x43, 0xa2, 0x27, 0x84, 0x22, 0xc4, 0x61, 0x12,
-	0xaa, 0xdc, 0xd4, 0x73, 0xcc, 0xd2, 0xd8, 0x72, 0x9c, 0xc2, 0xde, 0x82, 0x23, 0x8f, 0xc0, 0x23,
-	0x20, 0x4e, 0x7b, 0x13, 0x10, 0xb7, 0xbd, 0x05, 0x8a, 0xe3, 0x42, 0x5b, 0x84, 0xd6, 0xdd, 0x3e,
-	0xff, 0x3f, 0x7f, 0xbf, 0xfe, 0xfd, 0x77, 0x63, 0x78, 0xce, 0xb8, 0x4e, 0x8a, 0x29, 0x8e, 0xc5,
-	0x3c, 0xcc, 0x45, 0x2a, 0x1e, 0x72, 0x11, 0xb2, 0x54, 0x88, 0x50, 0x2a, 0xf1, 0x81, 0xc6, 0x3a,
-	0xaf, 0x56, 0x44, 0xf2, 0x70, 0xf1, 0x38, 0x4c, 0x28, 0x49, 0x75, 0x32, 0x89, 0x13, 0x1a, 0x9f,
-	0x61, 0xa9, 0x84, 0x16, 0xa8, 0x5b, 0xf6, 0x71, 0x39, 0x8a, 0xb9, 0x08, 0xf6, 0x16, 0x24, 0xe5,
-	0x33, 0xa2, 0x69, 0xb8, 0x2c, 0xaa, 0x6d, 0xc1, 0x4d, 0x26, 0x98, 0x30, 0x65, 0x58, 0x56, 0x56,
-	0xdd, 0x67, 0x42, 0xb0, 0x94, 0x86, 0x66, 0x35, 0x2d, 0x4e, 0xc3, 0x8f, 0x8a, 0x48, 0x49, 0x55,
-	0xfe, 0xbf, 0xfe, 0xac, 0x50, 0x44, 0x73, 0x91, 0x55, 0xfd, 0xfb, 0x3f, 0x9b, 0xb0, 0x3b, 0x36,
-	0x9e, 0x8e, 0x4b, 0x4b, 0xc7, 0x22, 0x3b, 0xe5, 0x0c, 0x3d, 0x83, 0x96, 0xe6, 0x73, 0x2a, 0x0a,
-	0xed, 0x3b, 0x03, 0xe7, 0xb0, 0x33, 0xbc, 0x85, 0x2b, 0x0e, 0x5e, 0x72, 0xf0, 0x4b, 0xcb, 0x19,
-	0xb9, 0x5f, 0x7e, 0x1c, 0x38, 0xd1, 0x72, 0x3f, 0x3a, 0x82, 0x36, 0xcf, 0x34, 0x55, 0x0b, 0x92,
-	0xfa, 0xf5, 0xed, 0x66, 0xff, 0x0c, 0xa0, 0xf7, 0xb0, 0x9b, 0x68, 0x2d, 0x27, 0xab, 0x29, 0xf9,
-	0x6d, 0x43, 0x09, 0xf1, 0x6a, 0x4c, 0xf8, 0x1f, 0xcf, 0x78, 0xac, 0xb5, 0x5c, 0x51, 0xc7, 0xb5,
-	0xa8, 0x9f, 0xac, 0x4b, 0xe8, 0x04, 0x76, 0x74, 0xbc, 0x41, 0xf7, 0x0c, 0x1d, 0x5f, 0x45, 0x7f,
-	0x1b, 0x6f, 0xc0, 0x7b, 0x7a, 0x4d, 0x29, 0xad, 0x33, 0x25, 0xe3, 0x75, 0x78, 0x67, 0x3b, 0xeb,
-	0xaf, 0x94, 0x8c, 0x37, 0xac, 0xb3, 0x75, 0x29, 0x20, 0xd0, 0xdf, 0x38, 0x20, 0x42, 0xe0, 0x26,
-	0x22, 0xaf, 0x6e, 0xc8, 0x8b, 0x4c, 0x8d, 0xee, 0x82, 0x2b, 0x89, 0x4e, 0x4c, 0xf2, 0xde, 0xc8,
-	0xfb, 0x7e, 0x79, 0xd1, 0x70, 0x55, 0x7d, 0xe0, 0x44, 0x46, 0x46, 0xb7, 0xc1, 0x2b, 0x72, 0x3a,
-	0x29, 0x73, 0x19, 0xfa, 0xad, 0x81, 0x73, 0xd8, 0x8e, 0xda, 0x45, 0x4e, 0x4b, 0xf2, 0x30, 0x78,
-	0x07, 0xad, 0x37, 0xe4, 0x3c, 0x15, 0x64, 0x86, 0x0e, 0xc0, 0xd5, 0xf4, 0x93, 0x45, 0xaf, 0x60,
-	0xc6, 0xb5, 0xc8, 0x34, 0x90, 0x0f, 0xcd, 0x29, 0xcf, 0x88, 0x3a, 0x37, 0xbf, 0xd4, 0x1d, 0xd7,
-	0x22, 0xbb, 0x1e, 0xed, 0x40, 0x4b, 0x5a, 0xca, 0x8d, 0x6f, 0x97, 0x17, 0x0d, 0x27, 0xf8, 0xec,
-	0x40, 0x6f, 0x3d, 0x3e, 0x74, 0x04, 0x6e, 0x4e, 0xb3, 0x99, 0xfd, 0x73, 0x3d, 0xb8, 0x2a, 0x1f,
-	0x6b, 0x2b, 0x32, 0x43, 0xe8, 0x05, 0xb4, 0x14, 0x8d, 0x29, 0x5f, 0x50, 0xbf, 0x3e, 0x68, 0x5c,
-	0x67, 0x7e, 0x39, 0x17, 0x44, 0xd0, 0xdf, 0xc8, 0x1c, 0xdd, 0x83, 0x6e, 0x4e, 0xd5, 0x82, 0xc7,
-	0x74, 0x92, 0x91, 0x39, 0xb5, 0xa9, 0x76, 0xac, 0xf6, 0x9a, 0xcc, 0x29, 0xba, 0x03, 0x1e, 0x29,
-	0x74, 0x22, 0x14, 0xd7, 0xd5, 0xb9, 0xbd, 0xe8, 0xaf, 0x30, 0xda, 0x83, 0xde, 0xea, 0xdd, 0x53,
-	0x65, 0xcf, 0x3f, 0x7a, 0xfa, 0xf5, 0xd7, 0xbe, 0x73, 0xf2, 0x68, 0xbb, 0x67, 0x42, 0x9e, 0x31,
-	0xfb, 0x54, 0x4c, 0x9b, 0xe6, 0x7b, 0x79, 0xf2, 0x3b, 0x00, 0x00, 0xff, 0xff, 0xd6, 0x2c, 0x32,
-	0xb9, 0x61, 0x04, 0x00, 0x00,
+	// 435 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0x41, 0x8b, 0x13, 0x31,
+	0x14, 0xc7, 0xcd, 0xee, 0xac, 0xdb, 0x49, 0x17, 0xcb, 0x06, 0x61, 0xc7, 0xaa, 0x6b, 0xf5, 0xb4,
+	0x17, 0x13, 0xad, 0x20, 0x88, 0x07, 0xa1, 0x2b, 0xd8, 0x93, 0x87, 0x39, 0x0a, 0x52, 0xd2, 0xd9,
+	0x6c, 0x12, 0x77, 0xda, 0x17, 0x32, 0x6f, 0x2a, 0xde, 0xfd, 0x10, 0x7e, 0x04, 0x3f, 0x82, 0x08,
+	0xc2, 0x7e, 0x13, 0xc1, 0x5b, 0xbf, 0x85, 0x4c, 0x66, 0xaa, 0xd3, 0x96, 0x85, 0xde, 0x5e, 0xfe,
+	0x2f, 0xef, 0x37, 0xff, 0xf9, 0x93, 0x47, 0xdf, 0x68, 0x8b, 0xa6, 0x9c, 0xf2, 0x0c, 0x66, 0xa2,
+	0x80, 0x1c, 0x9e, 0x5a, 0x10, 0x3a, 0x07, 0x10, 0xce, 0xc3, 0x27, 0x95, 0x61, 0x51, 0x9f, 0xa4,
+	0xb3, 0x62, 0xf1, 0x5c, 0x18, 0x25, 0x73, 0x34, 0x93, 0xcc, 0xa8, 0xec, 0x8a, 0x3b, 0x0f, 0x08,
+	0xec, 0xa8, 0xea, 0xf3, 0x6a, 0x94, 0x5b, 0xe8, 0x9f, 0x2c, 0x64, 0x6e, 0x2f, 0x24, 0x2a, 0xb1,
+	0x2a, 0xea, 0x6b, 0xfd, 0xbb, 0x1a, 0x34, 0x84, 0x52, 0x54, 0x55, 0xa3, 0x9e, 0x6a, 0x00, 0x9d,
+	0x2b, 0x11, 0x4e, 0xd3, 0xf2, 0x52, 0x7c, 0xf6, 0xd2, 0x39, 0xe5, 0x8b, 0x9b, 0xfa, 0x17, 0xa5,
+	0x97, 0x68, 0x61, 0x5e, 0xf7, 0x9f, 0xfc, 0x8a, 0xe8, 0xf1, 0x38, 0x78, 0x3a, 0xaf, 0x2c, 0x9d,
+	0xc3, 0xfc, 0xd2, 0x6a, 0xf6, 0x8a, 0x1e, 0xa2, 0x9d, 0x29, 0x28, 0x31, 0x21, 0x03, 0x72, 0xd6,
+	0x1d, 0xde, 0xe3, 0x35, 0x87, 0xaf, 0x38, 0xfc, 0x6d, 0xc3, 0x19, 0x45, 0xdf, 0x7e, 0x3f, 0x22,
+	0xe9, 0xea, 0x3e, 0x7b, 0x4d, 0x3b, 0x76, 0x8e, 0xca, 0x2f, 0x64, 0x9e, 0xec, 0xed, 0x36, 0xfb,
+	0x6f, 0x80, 0x7d, 0xa4, 0xc7, 0x06, 0xd1, 0x4d, 0xda, 0x29, 0x25, 0x9d, 0x40, 0x11, 0xbc, 0x1d,
+	0x13, 0xdf, 0xf2, 0xcc, 0xc7, 0x88, 0xae, 0xa5, 0x8e, 0x6f, 0xa5, 0x3d, 0xb3, 0x2e, 0x55, 0x78,
+	0xed, 0x5d, 0xb6, 0x8e, 0xef, 0xee, 0x86, 0x7f, 0xe7, 0x5d, 0xb6, 0x81, 0xd7, 0xeb, 0x52, 0xff,
+	0x2b, 0xa1, 0xbd, 0x0d, 0x17, 0x8c, 0xd1, 0xc8, 0x40, 0x51, 0xc7, 0x18, 0xa7, 0xa1, 0x66, 0x0f,
+	0x69, 0xe4, 0x24, 0x9a, 0x10, 0x4f, 0x3c, 0x8a, 0x7f, 0x2e, 0xaf, 0xf7, 0x23, 0xbf, 0x37, 0x20,
+	0x69, 0x90, 0xd9, 0x63, 0x7a, 0x54, 0x28, 0xbf, 0xb0, 0x99, 0x9a, 0xcc, 0xe5, 0x4c, 0x25, 0x07,
+	0x61, 0xb4, 0xdb, 0x68, 0xef, 0xe5, 0x4c, 0xb1, 0xfb, 0x34, 0x2e, 0x0b, 0x35, 0xa9, 0xfe, 0x6f,
+	0x98, 0x1c, 0x0e, 0xc8, 0x59, 0x27, 0xed, 0x94, 0x85, 0xaa, 0x3e, 0x3e, 0xec, 0xa7, 0xb4, 0xb7,
+	0x61, 0x76, 0x0b, 0x49, 0xb6, 0x91, 0x0f, 0x68, 0x2c, 0x4b, 0x34, 0xe0, 0x2d, 0x7e, 0xa9, 0x9d,
+	0xa5, 0xff, 0x85, 0xd1, 0x09, 0xbd, 0xd3, 0x0e, 0x4d, 0x79, 0x76, 0xf0, 0x63, 0x79, 0xbd, 0x4f,
+	0x46, 0x2f, 0xbf, 0xff, 0x39, 0x25, 0x1f, 0x9e, 0xed, 0xb6, 0x03, 0xee, 0x4a, 0x37, 0x7b, 0x30,
+	0xbd, 0x1d, 0x1e, 0xc3, 0x8b, 0xbf, 0x01, 0x00, 0x00, 0xff, 0xff, 0xd7, 0xba, 0xcf, 0xe1, 0x3e,
+	0x03, 0x00, 0x00,
 }
 
 func (this *HealthCheckConfig) Equal(that interface{}) bool {
@@ -652,30 +438,6 @@ func (this *HealthCheckConfig_HttpHealthCheck_) Equal(that interface{}) bool {
 	}
 	return true
 }
-func (this *HealthCheckConfig_TcpHealthCheck_) Equal(that interface{}) bool {
-	if that == nil {
-		return this == nil
-	}
-
-	that1, ok := that.(*HealthCheckConfig_TcpHealthCheck_)
-	if !ok {
-		that2, ok := that.(HealthCheckConfig_TcpHealthCheck_)
-		if ok {
-			that1 = &that2
-		} else {
-			return false
-		}
-	}
-	if that1 == nil {
-		return this == nil
-	} else if this == nil {
-		return false
-	}
-	if !this.TcpHealthCheck.Equal(that1.TcpHealthCheck) {
-		return false
-	}
-	return true
-}
 func (this *HealthCheckConfig_GrpcHealthCheck_) Equal(that interface{}) bool {
 	if that == nil {
 		return this == nil
@@ -725,124 +487,11 @@ func (this *HealthCheckConfig_HttpHealthCheck) Equal(that interface{}) bool {
 	if this.Path != that1.Path {
 		return false
 	}
+	if this.ServiceName != that1.ServiceName {
+		return false
+	}
 	if this.UseHttp2 != that1.UseHttp2 {
 		return false
-	}
-	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return false
-	}
-	return true
-}
-func (this *HealthCheckConfig_Payload) Equal(that interface{}) bool {
-	if that == nil {
-		return this == nil
-	}
-
-	that1, ok := that.(*HealthCheckConfig_Payload)
-	if !ok {
-		that2, ok := that.(HealthCheckConfig_Payload)
-		if ok {
-			that1 = &that2
-		} else {
-			return false
-		}
-	}
-	if that1 == nil {
-		return this == nil
-	} else if this == nil {
-		return false
-	}
-	if that1.Payload == nil {
-		if this.Payload != nil {
-			return false
-		}
-	} else if this.Payload == nil {
-		return false
-	} else if !this.Payload.Equal(that1.Payload) {
-		return false
-	}
-	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return false
-	}
-	return true
-}
-func (this *HealthCheckConfig_Payload_Text) Equal(that interface{}) bool {
-	if that == nil {
-		return this == nil
-	}
-
-	that1, ok := that.(*HealthCheckConfig_Payload_Text)
-	if !ok {
-		that2, ok := that.(HealthCheckConfig_Payload_Text)
-		if ok {
-			that1 = &that2
-		} else {
-			return false
-		}
-	}
-	if that1 == nil {
-		return this == nil
-	} else if this == nil {
-		return false
-	}
-	if this.Text != that1.Text {
-		return false
-	}
-	return true
-}
-func (this *HealthCheckConfig_Payload_Binary) Equal(that interface{}) bool {
-	if that == nil {
-		return this == nil
-	}
-
-	that1, ok := that.(*HealthCheckConfig_Payload_Binary)
-	if !ok {
-		that2, ok := that.(HealthCheckConfig_Payload_Binary)
-		if ok {
-			that1 = &that2
-		} else {
-			return false
-		}
-	}
-	if that1 == nil {
-		return this == nil
-	} else if this == nil {
-		return false
-	}
-	if !bytes.Equal(this.Binary, that1.Binary) {
-		return false
-	}
-	return true
-}
-func (this *HealthCheckConfig_TcpHealthCheck) Equal(that interface{}) bool {
-	if that == nil {
-		return this == nil
-	}
-
-	that1, ok := that.(*HealthCheckConfig_TcpHealthCheck)
-	if !ok {
-		that2, ok := that.(HealthCheckConfig_TcpHealthCheck)
-		if ok {
-			that1 = &that2
-		} else {
-			return false
-		}
-	}
-	if that1 == nil {
-		return this == nil
-	} else if this == nil {
-		return false
-	}
-	if !this.Send.Equal(that1.Send) {
-		return false
-	}
-	if len(this.Receive) != len(that1.Receive) {
-		return false
-	}
-	for i := range this.Receive {
-		if !this.Receive[i].Equal(that1.Receive[i]) {
-			return false
-		}
 	}
 	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
 		return false

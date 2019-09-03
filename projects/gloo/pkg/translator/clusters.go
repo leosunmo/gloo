@@ -60,6 +60,7 @@ func (t *translator) initializeCluster(upstream *v1.Upstream, endpoints []*v1.En
 		Metadata:        new(envoycore.Metadata),
 		CircuitBreakers: getCircuitBreakers(upstream.UpstreamSpec.CircuitBreakers, t.settings.CircuitBreakers),
 		LbSubsetConfig:  createLbConfig(upstream),
+		HealthChecks:    createHealthCheckConfig(upstream),
 		// this field can be overridden by plugins
 		ConnectTimeout:       ClusterConnectionTimeout,
 		Http2ProtocolOptions: getHttp2ptions(upstream.UpstreamSpec),
@@ -69,6 +70,43 @@ func (t *translator) initializeCluster(upstream *v1.Upstream, endpoints []*v1.En
 		xds.SetEdsOnCluster(out)
 	}
 	return out
+}
+
+func createHealthCheckConfig(upstream *v1.Upstream) []*envoycore.HealthCheck {
+	var result []*envoycore.HealthCheck
+	if upstream.GetUpstreamSpec() == nil {
+		return result
+	}
+	for _, hc := range upstream.GetUpstreamSpec().GetHealthChecks() {
+
+		translatedHc := &envoycore.HealthCheck{
+			Timeout:  hc.GetTimeout(),
+			Interval: hc.GetInterval(),
+		}
+
+		switch healthChecker := hc.GetHealthChecker().(type) {
+		case *v1.HealthCheckConfig_GrpcHealthCheck_:
+			translatedHc.HealthChecker = &envoycore.HealthCheck_GrpcHealthCheck_{
+				GrpcHealthCheck: &envoycore.HealthCheck_GrpcHealthCheck{
+					ServiceName: healthChecker.GrpcHealthCheck.ServiceName,
+					Authority:   healthChecker.GrpcHealthCheck.Authority,
+				},
+			}
+		case *v1.HealthCheckConfig_HttpHealthCheck_:
+			translatedHc.HealthChecker = &envoycore.HealthCheck_HttpHealthCheck_{
+				HttpHealthCheck: &envoycore.HealthCheck_HttpHealthCheck{
+					Host:        healthChecker.HttpHealthCheck.GetHost(),
+					Path:        healthChecker.HttpHealthCheck.GetPath(),
+					ServiceName: healthChecker.HttpHealthCheck.GetServiceName(),
+					UseHttp2:    healthChecker.HttpHealthCheck.GetUseHttp2(),
+				},
+			}
+		default:
+			continue
+		}
+		result = append(result, translatedHc)
+	}
+	return result
 }
 
 func createLbConfig(upstream *v1.Upstream) *envoyapi.Cluster_LbSubsetConfig {

@@ -13,8 +13,6 @@ weight: 5
 
 - [HealthCheckConfig](#healthcheckconfig)
 - [HttpHealthCheck](#httphealthcheck)
-- [Payload](#payload)
-- [TcpHealthCheck](#tcphealthcheck)
 - [GrpcHealthCheck](#grpchealthcheck)
   
 
@@ -39,7 +37,6 @@ Or examine the [config definition](https://www.envoyproxy.io/docs/envoy/v1.11.0/
 "timeout": .google.protobuf.Duration
 "interval": .google.protobuf.Duration
 "httpHealthCheck": .gloo.solo.io.HealthCheckConfig.HttpHealthCheck
-"tcpHealthCheck": .gloo.solo.io.HealthCheckConfig.TcpHealthCheck
 "grpcHealthCheck": .gloo.solo.io.HealthCheckConfig.GrpcHealthCheck
 
 ```
@@ -49,7 +46,6 @@ Or examine the [config definition](https://www.envoyproxy.io/docs/envoy/v1.11.0/
 | `timeout` | [.google.protobuf.Duration](https://developers.google.com/protocol-buffers/docs/reference/csharp/class/google/protobuf/well-known-types/duration) |  |  |
 | `interval` | [.google.protobuf.Duration](https://developers.google.com/protocol-buffers/docs/reference/csharp/class/google/protobuf/well-known-types/duration) |  |  |
 | `httpHealthCheck` | [.gloo.solo.io.HealthCheckConfig.HttpHealthCheck](../health_check.proto.sk#httphealthcheck) | HTTP health check. |  |
-| `tcpHealthCheck` | [.gloo.solo.io.HealthCheckConfig.TcpHealthCheck](../health_check.proto.sk#tcphealthcheck) | TCP health check. |  |
 | `grpcHealthCheck` | [.gloo.solo.io.HealthCheckConfig.GrpcHealthCheck](../health_check.proto.sk#grpchealthcheck) | gRPC health check. |  |
 
 
@@ -63,6 +59,7 @@ Or examine the [config definition](https://www.envoyproxy.io/docs/envoy/v1.11.0/
 ```yaml
 "host": string
 "path": string
+"serviceName": string
 "useHttp2": bool
 
 ```
@@ -71,45 +68,8 @@ Or examine the [config definition](https://www.envoyproxy.io/docs/envoy/v1.11.0/
 | ----- | ---- | ----------- |----------- | 
 | `host` | `string` | The value of the host header in the HTTP health check request. If left empty (default value), the name of the cluster this health check is associated with will be used. |  |
 | `path` | `string` | Specifies the HTTP path that will be requested during health checking. For example */healthcheck*. |  |
+| `serviceName` | `string` | An optional service name parameter which is used to validate the identity of the health checked cluster. See the :ref:`architecture overview <arch_overview_health_checking_identity>` for more information. |  |
 | `useHttp2` | `bool` | If set, health checks will be made using http/2. |  |
-
-
-
-
----
-### Payload
-
-
-
-```yaml
-"text": string
-"binary": bytes
-
-```
-
-| Field | Type | Description | Default |
-| ----- | ---- | ----------- |----------- | 
-| `text` | `string` | Hex encoded payload. E.g., "000000FF". |  |
-| `binary` | `bytes` | [#not-implemented-hide:] Binary payload. |  |
-
-
-
-
----
-### TcpHealthCheck
-
-
-
-```yaml
-"send": .gloo.solo.io.HealthCheckConfig.Payload
-"receive": []gloo.solo.io.HealthCheckConfig.Payload
-
-```
-
-| Field | Type | Description | Default |
-| ----- | ---- | ----------- |----------- | 
-| `send` | [.gloo.solo.io.HealthCheckConfig.Payload](../health_check.proto.sk#payload) | Empty payloads imply a connect-only health check. |  |
-| `receive` | [[]gloo.solo.io.HealthCheckConfig.Payload](../health_check.proto.sk#payload) | When checking the response, “fuzzy” matching is performed such that each binary block must be found, and in the order specified, but not necessarily contiguous. |  |
 
 
 
