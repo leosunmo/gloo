@@ -50,14 +50,16 @@ func NewTestGRPCUpstream(ctx context.Context, addr string) *TestUpstream {
 	}()
 
 	us := newTestUpstream(addr, srv.Port, received)
+	us.GrpcServer = srv
 	return us
 }
 
 type TestUpstream struct {
-	Upstream *gloov1.Upstream
-	C        <-chan *ReceivedRequest
-	Address  string
-	Port     uint32
+	Upstream   *gloov1.Upstream
+	C          <-chan *ReceivedRequest
+	Address    string
+	Port       uint32
+	GrpcServer *testgrpcservice.TestGRPCServer
 }
 
 var id = 0
@@ -126,10 +128,15 @@ func runTestServer(ctx context.Context, reply string) (uint32, <-chan *ReceivedR
 		panic(err)
 	}
 
-	handler := http.HandlerFunc(handlerFunc)
+	mux := http.NewServeMux()
+	mux.Handle("/", http.HandlerFunc(handlerFunc))
+	mux.Handle("/health", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("OK"))
+	}))
+
 	go func() {
 		defer GinkgoRecover()
-		h := &http.Server{Handler: handler}
+		h := &http.Server{Handler: mux}
 		go func() {
 			defer GinkgoRecover()
 			if err := h.Serve(listener); err != nil {

@@ -91,10 +91,11 @@ func createHealthCheckConfig(upstream *v1.Upstream) []*envoycore.HealthCheck {
 	for _, hc := range upstream.GetUpstreamSpec().GetHealthChecks() {
 
 		translatedHc := &envoycore.HealthCheck{
-			Timeout:            hc.GetTimeout(),
-			Interval:           hc.GetInterval(),
-			UnhealthyThreshold: hc.GetUnhealthyThreshold(),
-			HealthyThreshold:   hc.GetUnhealthyThreshold(),
+			Timeout:                      hc.GetTimeout(),
+			Interval:                     hc.GetInterval(),
+			UnhealthyThreshold:           hc.GetUnhealthyThreshold(),
+			HealthyThreshold:             hc.GetUnhealthyThreshold(),
+			AlwaysLogHealthCheckFailures: true,
 		}
 
 		if translatedHc.GetTimeout() == nil {

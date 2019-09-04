@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/solo-io/gloo/pkg/utils"
@@ -63,6 +64,8 @@ var _ = FDescribe("GRPC Plugin", func() {
 		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr())
 		_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func() error {return envoyInstance.SetPanicThreshold()}, time.Second*5, time.Second/4).Should(BeNil())
 	})
 
 	AfterEach(func() {
@@ -112,6 +115,21 @@ var _ = FDescribe("GRPC Plugin", func() {
 		}
 	}
 
+	basicReq := func(b []byte) func() (string, error) {
+		return func() (string, error) {
+			// send a request with a body
+			var buf bytes.Buffer
+			buf.Write(b)
+			res, err := http.Post(fmt.Sprintf("http://%s:%d/test", "localhost", defaults.HttpPort), "application/json", &buf)
+			if err != nil {
+				return "", err
+			}
+			defer res.Body.Close()
+			body, err := ioutil.ReadAll(res.Body)
+			return string(body), err
+		}
+	}
+
 	It("Routes to GRPC Functions", func() {
 
 		vs := getGrpcVs()
@@ -120,64 +138,7 @@ var _ = FDescribe("GRPC Plugin", func() {
 
 		body := []byte(`{"str": "foo"}`)
 
-		testRequest := func() (string, error) {
-			// send a request with a body
-			var buf bytes.Buffer
-			buf.Write(body)
-			res, err := http.Post(fmt.Sprintf("http://%s:%d/test", "localhost", defaults.HttpPort), "application/json", &buf)
-			if err != nil {
-				return "", err
-			}
-			defer res.Body.Close()
-			body, err := ioutil.ReadAll(res.Body)
-			return string(body), err
-		}
-
-		Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
-
-		Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
-			"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
-		}))))
-	})
-
-	It("Grpc Health Checks", func() {
-
-		vs := getGrpcVs()
-		_, err := testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
-		Expect(err).NotTo(HaveOccurred())
-
-		us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
-		Expect(err).NotTo(HaveOccurred())
-
-		us.GetUpstreamSpec().HealthChecks = []*gloov1.HealthCheckConfig{
-			{
-				HealthChecker: &gloov1.HealthCheckConfig_GrpcHealthCheck_{
-					GrpcHealthCheck: &gloov1.HealthCheckConfig_GrpcHealthCheck{
-						ServiceName: "TestService",
-					},
-				},
-			},
-		}
-
-		_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
-			OverwriteExisting: true,
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		body := []byte(`{"str": "foo"}`)
-
-		testRequest := func() (string, error) {
-			// send a request with a body
-			var buf bytes.Buffer
-			buf.Write(body)
-			res, err := http.Post(fmt.Sprintf("http://%s:%d/test", "localhost", defaults.HttpPort), "application/json", &buf)
-			if err != nil {
-				return "", err
-			}
-			defer res.Body.Close()
-			body, err := ioutil.ReadAll(res.Body)
-			return string(body), err
-		}
+		testRequest := basicReq(body)
 
 		Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
 
@@ -211,6 +172,57 @@ var _ = FDescribe("GRPC Plugin", func() {
 		Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
 			"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
 		}))))
+	})
+
+	Context("health checks", func() {
+
+		BeforeEach(func() {
+			vs := getGrpcVs()
+			_, err := testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
+			Expect(err).NotTo(HaveOccurred())
+
+			us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
+			Expect(err).NotTo(HaveOccurred())
+
+			us.GetUpstreamSpec().HealthChecks = []*gloov1.HealthCheckConfig{
+				{
+					HealthChecker: &gloov1.HealthCheckConfig_GrpcHealthCheck_{
+						GrpcHealthCheck: &gloov1.HealthCheckConfig_GrpcHealthCheck{
+							ServiceName: "TestService",
+						},
+					},
+				},
+			}
+
+			_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
+				OverwriteExisting: true,
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("Grpc Health Checks passes", func() {
+
+			body := []byte(`{"str": "foo"}`)
+			testRequest := basicReq(body)
+
+			Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
+
+			Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
+				"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
+			}))))
+		})
+
+		It("Grpc Health Checks fails", func() {
+			tu.GrpcServer.HealthChecker.Fail()
+			body := []byte(`{"str": "foo"}`)
+			testRequest := basicReq(body)
+
+			Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
+
+			Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
+				"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
+			}))))
+		})
 	})
 
 })

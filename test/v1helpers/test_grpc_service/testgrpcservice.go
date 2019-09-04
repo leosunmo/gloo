@@ -36,7 +36,8 @@ func RunServer(ctx context.Context) *TestGRPCServer {
 	grpcServer := grpc.NewServer()
 	reflection.Register(grpcServer)
 	srv := newServer()
-	healthpb.RegisterHealthServer(grpcServer, NewHealthChecker(health.NewServer()))
+	hc := NewHealthChecker(health.NewServer())
+	healthpb.RegisterHealthServer(grpcServer, hc)
 	glootest.RegisterTestServiceServer(grpcServer, srv)
 	glootest.RegisterTestService2Server(grpcServer, srv)
 	go grpcServer.Serve(lis)
@@ -54,6 +55,7 @@ func RunServer(ctx context.Context) *TestGRPCServer {
 	}
 
 	srv.Port = uint32(port)
+	srv.HealthChecker = hc
 
 	return srv
 }
@@ -65,8 +67,9 @@ func newServer() *TestGRPCServer {
 }
 
 type TestGRPCServer struct {
-	C    chan *glootest.TestRequest
-	Port uint32
+	C             chan *glootest.TestRequest
+	Port          uint32
+	HealthChecker *healthChecker
 }
 
 // Returns a list of all shelves in the bookstore.
