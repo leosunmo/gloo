@@ -27,7 +27,7 @@ import (
 	"github.com/solo-io/gloo/projects/gloo/pkg/defaults"
 )
 
-var _ = FDescribe("GRPC Plugin", func() {
+var _ = Describe("GRPC Plugin", func() {
 	var (
 		ctx            context.Context
 		cancel         context.CancelFunc
@@ -61,7 +61,7 @@ var _ = FDescribe("GRPC Plugin", func() {
 		err = envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
 		Expect(err).NotTo(HaveOccurred())
 
-		tu = v1helpers.MultiNewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
+		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
 		_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 		Expect(err).NotTo(HaveOccurred())
 

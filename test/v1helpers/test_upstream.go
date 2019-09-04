@@ -22,11 +22,11 @@ import (
 )
 
 type ReceivedRequest struct {
-	Method       string
-	Body         []byte
-	Host         string
-	GRPCRequest  proto.Message
-	Port uint32
+	Method      string
+	Body        []byte
+	Host        string
+	GRPCRequest proto.Message
+	Port        uint32
 }
 
 func NewTestHttpUpstream(ctx context.Context, addr string) *TestUpstream {
@@ -39,22 +39,7 @@ func NewTestHttpUpstreamWithReply(ctx context.Context, addr, reply string) *Test
 	return newTestUpstream(addr, []uint32{backendPort}, responses)
 }
 
-func NewTestGRPCUpstream(ctx context.Context, addr string) *TestUpstream {
-	srv := testgrpcservice.RunServer(ctx)
-	received := make(chan *ReceivedRequest, 100)
-	go func() {
-		defer GinkgoRecover()
-		for r := range srv.C {
-			received <- &ReceivedRequest{GRPCRequest: r, Port: srv.Port}
-		}
-	}()
-
-	us := newTestUpstream(addr, []uint32{srv.Port}, received)
-	us.GrpcServers = []*testgrpcservice.TestGRPCServer{srv}
-	return us
-}
-
-func MultiNewTestGRPCUpstream(ctx context.Context, addr string, replicas int) *TestUpstream {
+func NewTestGRPCUpstream(ctx context.Context, addr string, replicas int) *TestUpstream {
 	grpcServices := make([]*testgrpcservice.TestGRPCServer, replicas)
 	for i := range grpcServices {
 		grpcServices[i] = testgrpcservice.RunServer(ctx)
