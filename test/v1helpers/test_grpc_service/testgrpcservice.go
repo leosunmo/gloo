@@ -119,8 +119,8 @@ func NewHealthChecker(grpcHealthServer *health.Server) *healthChecker {
 	return ret
 }
 
-func (h *healthChecker) Check(context.Context, *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
-	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
+func (h *healthChecker) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
+	return h.grpc.Check(ctx, in)
 }
 
 func (hc *healthChecker) Fail() {

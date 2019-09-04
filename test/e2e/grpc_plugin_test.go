@@ -61,11 +61,11 @@ var _ = FDescribe("GRPC Plugin", func() {
 		err = envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
 		Expect(err).NotTo(HaveOccurred())
 
-		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr())
+		tu = v1helpers.MultiNewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
 		_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() error {return envoyInstance.SetPanicThreshold()}, time.Second*5, time.Second/4).Should(BeNil())
+		Eventually(func() error { return envoyInstance.SetPanicThreshold() }, time.Second*5, time.Second/4).Should(BeNil())
 	})
 
 	AfterEach(func() {
@@ -200,28 +200,25 @@ var _ = FDescribe("GRPC Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("Grpc Health Checks passes", func() {
-
+		It("Fail all but one GRPC health check", func() {
+			liveService := tu.FailGrpcHealthCheck()
 			body := []byte(`{"str": "foo"}`)
 			testRequest := basicReq(body)
 
-			Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
+			numRequests := 5
 
-			Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
-				"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
-			}))))
-		})
+			for i := 0; i < numRequests; i++ {
+				Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
+			}
 
-		It("Grpc Health Checks fails", func() {
-			tu.GrpcServer.HealthChecker.Fail()
-			body := []byte(`{"str": "foo"}`)
-			testRequest := basicReq(body)
-
-			Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
-
-			Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
-				"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
-			}))))
+			for i := 0; i < numRequests; i++ {
+				select {
+				case v := <-tu.C:
+					Expect(v.Port).To(Equal(liveService.Port))
+				case <-time.After(5 * time.Second):
+					Fail("channel did not receive proper response in time")
+				}
+			}
 		})
 	})
 

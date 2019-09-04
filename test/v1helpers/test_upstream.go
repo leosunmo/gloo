@@ -12,10 +12,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/gogo/protobuf/proto"
 	gloov1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
 	static_plugin_gloo "github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/static"
 	testgrpcservice "github.com/solo-io/gloo/test/v1helpers/test_grpc_service"
@@ -23,20 +22,21 @@ import (
 )
 
 type ReceivedRequest struct {
-	Method      string
-	Body        []byte
-	Host        string
-	GRPCRequest proto.Message
+	Method       string
+	Body         []byte
+	Host         string
+	GRPCRequest  proto.Message
+	Port uint32
 }
 
 func NewTestHttpUpstream(ctx context.Context, addr string) *TestUpstream {
 	backendPort, responses := runTestServer(ctx, "")
-	return newTestUpstream(addr, backendPort, responses)
+	return newTestUpstream(addr, []uint32{backendPort}, responses)
 }
 
 func NewTestHttpUpstreamWithReply(ctx context.Context, addr, reply string) *TestUpstream {
 	backendPort, responses := runTestServer(ctx, reply)
-	return newTestUpstream(addr, backendPort, responses)
+	return newTestUpstream(addr, []uint32{backendPort}, responses)
 }
 
 func NewTestGRPCUpstream(ctx context.Context, addr string) *TestUpstream {
@@ -45,27 +45,66 @@ func NewTestGRPCUpstream(ctx context.Context, addr string) *TestUpstream {
 	go func() {
 		defer GinkgoRecover()
 		for r := range srv.C {
-			received <- &ReceivedRequest{GRPCRequest: r}
+			received <- &ReceivedRequest{GRPCRequest: r, Port: srv.Port}
 		}
 	}()
 
-	us := newTestUpstream(addr, srv.Port, received)
-	us.GrpcServer = srv
+	us := newTestUpstream(addr, []uint32{srv.Port}, received)
+	us.GrpcServers = []*testgrpcservice.TestGRPCServer{srv}
+	return us
+}
+
+func MultiNewTestGRPCUpstream(ctx context.Context, addr string, replicas int) *TestUpstream {
+	grpcServices := make([]*testgrpcservice.TestGRPCServer, replicas)
+	for i := range grpcServices {
+		grpcServices[i] = testgrpcservice.RunServer(ctx)
+	}
+	received := make(chan *ReceivedRequest, 100)
+	for _, srv := range grpcServices {
+		srv := srv
+		go func() {
+			defer GinkgoRecover()
+			for r := range srv.C {
+				received <- &ReceivedRequest{GRPCRequest: r, Port: srv.Port}
+			}
+		}()
+	}
+	ports := make([]uint32, 0, len(grpcServices))
+	for _, v := range grpcServices {
+		ports = append(ports, v.Port)
+	}
+
+	us := newTestUpstream(addr, ports, received)
+	us.GrpcServers = grpcServices
 	return us
 }
 
 type TestUpstream struct {
-	Upstream   *gloov1.Upstream
-	C          <-chan *ReceivedRequest
-	Address    string
-	Port       uint32
-	GrpcServer *testgrpcservice.TestGRPCServer
+	Upstream    *gloov1.Upstream
+	C           <-chan *ReceivedRequest
+	Address     string
+	Port        uint32
+	GrpcServers []*testgrpcservice.TestGRPCServer
+}
+
+func (tu *TestUpstream) FailGrpcHealthCheck() *testgrpcservice.TestGRPCServer {
+	for _, v := range tu.GrpcServers[:len(tu.GrpcServers)-1] {
+		v.HealthChecker.Fail()
+	}
+	return tu.GrpcServers[len(tu.GrpcServers)-1]
 }
 
 var id = 0
 
-func newTestUpstream(addr string, port uint32, responses <-chan *ReceivedRequest) *TestUpstream {
+func newTestUpstream(addr string, ports []uint32, responses <-chan *ReceivedRequest) *TestUpstream {
 	id += 1
+	hosts := make([]*static_plugin_gloo.Host, len(ports))
+	for i, port := range ports {
+		hosts[i] = &static_plugin_gloo.Host{
+			Addr: addr,
+			Port: port,
+		}
+	}
 	u := &gloov1.Upstream{
 		Metadata: core.Metadata{
 			Name:      fmt.Sprintf("local-%d", id),
@@ -74,10 +113,7 @@ func newTestUpstream(addr string, port uint32, responses <-chan *ReceivedRequest
 		UpstreamSpec: &gloov1.UpstreamSpec{
 			UpstreamType: &gloov1.UpstreamSpec_Static{
 				Static: &static_plugin_gloo.UpstreamSpec{
-					Hosts: []*static_plugin_gloo.Host{{
-						Addr: addr,
-						Port: port,
-					}},
+					Hosts: hosts,
 				},
 			},
 		},
@@ -86,8 +122,7 @@ func newTestUpstream(addr string, port uint32, responses <-chan *ReceivedRequest
 	return &TestUpstream{
 		Upstream: u,
 		C:        responses,
-		Address:  fmt.Sprintf("%s:%d", addr, port),
-		Port:     port,
+		Port:     ports[0],
 	}
 }
 

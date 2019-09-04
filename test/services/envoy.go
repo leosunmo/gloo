@@ -298,7 +298,7 @@ func (ei *EnvoyInstance) LocalAddr() string {
 }
 
 func (ei *EnvoyInstance) SetPanicThreshold() error {
-	_, err := 	http.Post(fmt.Sprintf("http://localhost:%d/runtime_modify?upstream.healthy_panic_threshold=%d", ei.AdminPort, 100), "", nil)
+	_, err := http.Post(fmt.Sprintf("http://localhost:%d/runtime_modify?upstream.healthy_panic_threshold=%d", ei.AdminPort, 0), "", nil)
 	return err
 }
 
