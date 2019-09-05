@@ -87,7 +87,7 @@ message HealthCheck {
             string text = 1 [(validate.rules).string.min_bytes = 1];
 
             // [#not-implemented-hide:] Binary payload.
-            bytes binary = 2;
+//            bytes binary = 2;
         }
     }
 
@@ -103,10 +103,10 @@ message HealthCheck {
         string path = 2 [(validate.rules).string.min_bytes = 1];
 
         // [#not-implemented-hide:] HTTP specific payload.
-        Payload send = 3;
+//        Payload send = 3;
 
         // [#not-implemented-hide:] HTTP specific response.
-        Payload receive = 4;
+//        Payload receive = 4;
 
         // An optional service name parameter which is used to validate the identity of
         // the health checked cluster. See the :ref:`architecture overview

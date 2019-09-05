@@ -433,7 +433,7 @@ var _ = Describe("Translator", func() {
 		It("can properly validate outlier detection config", func() {
 			dur := &types.Duration{Seconds: 0}
 			expectedResult := &envoycluster.OutlierDetection{
-				Interval:                               dur,
+				Interval: dur,
 			}
 			upstream.UpstreamSpec.OutlierDetection = expectedResult
 			translateWithError()

@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	envoycluster "github.com/envoyproxy/go-control-plane/envoy/api/v2/cluster"
 	envoycore "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	"github.com/gogo/protobuf/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -53,10 +55,6 @@ var _ = FDescribe("Health Checks", func() {
 		testClients = services.RunGlooGatewayUdsFds(ctx, ro)
 		err = envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
 		Expect(err).NotTo(HaveOccurred())
-
-		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
-		_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
-		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -81,19 +79,90 @@ var _ = FDescribe("Health Checks", func() {
 		}
 	}
 
-	Context("Http", func() {
+	Context("regression for config", func() {
 
 		BeforeEach(func() {
-			us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
+
+			tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 1)
+			_, err := testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 			Expect(err).NotTo(HaveOccurred())
 
-			us.GetUpstreamSpec().HealthChecks = []*envoycore.HealthCheck{
-				{
-					Timeout:                      &translator.DefaultHealthCheckTimeout,
-					Interval:                     &translator.DefaultHealthCheckInterval,
-					UnhealthyThreshold:           translator.DefaultThreshold,
-					HealthyThreshold:             translator.DefaultThreshold,
+		})
+
+		tests := []struct {
+			Name  string
+			Check *envoycore.HealthCheck
+		}{
+			{
+				Name: "http",
+				Check: &envoycore.HealthCheck{
+					HealthChecker: &envoycore.HealthCheck_HttpHealthCheck_{
+						HttpHealthCheck: &envoycore.HealthCheck_HttpHealthCheck{
+							Path: "xyz",
+						},
+					},
 				},
+			},
+			{
+				Name: "tcp",
+				Check: &envoycore.HealthCheck{
+					HealthChecker: &envoycore.HealthCheck_TcpHealthCheck_{
+						TcpHealthCheck: &envoycore.HealthCheck_TcpHealthCheck{
+							Send: &envoycore.HealthCheck_Payload{
+								Payload: &envoycore.HealthCheck_Payload_Text{
+									Text: "AAAA",
+								},
+							},
+							Receive: []*envoycore.HealthCheck_Payload{
+								{
+									Payload: &envoycore.HealthCheck_Payload_Text{
+										Text: "AAAA",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		for _, v := range tests {
+			v := v
+			It(v.Name, func() {
+				us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
+				Expect(err).NotTo(HaveOccurred())
+				v.Check.Timeout = &translator.DefaultHealthCheckTimeout
+				v.Check.Interval = &translator.DefaultHealthCheckInterval
+				v.Check.HealthyThreshold = translator.DefaultThreshold
+				v.Check.UnhealthyThreshold = translator.DefaultThreshold
+				us.GetUpstreamSpec().HealthChecks = []*envoycore.HealthCheck{v.Check}
+
+				_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
+					OverwriteExisting: true,
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				vs := getGrpcVs(writeNamespace, tu.Upstream.Metadata.Ref())
+				_, err = testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
+				Expect(err).NotTo(HaveOccurred())
+
+				body := []byte(`{"str": "foo"}`)
+
+				testRequest := basicReq(body)
+
+				Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
+
+				Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
+					"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
+				}))))
+			})
+		}
+
+		It("outlier detection", func() {
+			us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
+			Expect(err).NotTo(HaveOccurred())
+			us.GetUpstreamSpec().OutlierDetection = &envoycluster.OutlierDetection{
+				Interval: &types.Duration{Seconds: 1},
 			}
 
 			_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
@@ -104,9 +173,7 @@ var _ = FDescribe("Health Checks", func() {
 			vs := getGrpcVs(writeNamespace, tu.Upstream.Metadata.Ref())
 			_, err = testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
 			Expect(err).NotTo(HaveOccurred())
-		})
 
-		It("can route with nil", func() {
 			body := []byte(`{"str": "foo"}`)
 
 			testRequest := basicReq(body)
@@ -116,19 +183,23 @@ var _ = FDescribe("Health Checks", func() {
 			Eventually(tu.C).Should(Receive(PointTo(MatchFields(IgnoreExtras, Fields{
 				"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
 			}))))
-
 		})
-
 	})
 
-	Context("GRPC", func() {
+	Context("outlier detection", func() {
+	})
+
+	Context("e2e + GRPC", func() {
 
 		BeforeEach(func() {
+			tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
+			_, err := testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
+			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() error { return envoyInstance.SetPanicThreshold() }, time.Second*5, time.Second/4).Should(BeNil())
 
 			tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
-			_, err := testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
+			_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 			Expect(err).NotTo(HaveOccurred())
 
 			us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
@@ -136,10 +207,10 @@ var _ = FDescribe("Health Checks", func() {
 
 			us.GetUpstreamSpec().HealthChecks = []*envoycore.HealthCheck{
 				{
-					Timeout:                      &translator.DefaultHealthCheckTimeout,
-					Interval:                     &translator.DefaultHealthCheckInterval,
-					UnhealthyThreshold:           translator.DefaultThreshold,
-					HealthyThreshold:             translator.DefaultThreshold,
+					Timeout:            &translator.DefaultHealthCheckTimeout,
+					Interval:           &translator.DefaultHealthCheckInterval,
+					UnhealthyThreshold: translator.DefaultThreshold,
+					HealthyThreshold:   translator.DefaultThreshold,
 					HealthChecker: &envoycore.HealthCheck_GrpcHealthCheck_{
 						GrpcHealthCheck: &envoycore.HealthCheck_GrpcHealthCheck{
 							ServiceName: "TestService",

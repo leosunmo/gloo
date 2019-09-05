@@ -48,7 +48,6 @@ weight: 5
 "intervalJitterPercent": int
 "unhealthyThreshold": .google.protobuf.UInt32Value
 "healthyThreshold": .google.protobuf.UInt32Value
-"altPort": .google.protobuf.UInt32Value
 "reuseConnection": .google.protobuf.BoolValue
 "httpHealthCheck": .envoy.api.v2.core.HealthCheck.HttpHealthCheck
 "tcpHealthCheck": .envoy.api.v2.core.HealthCheck.TcpHealthCheck
@@ -72,7 +71,6 @@ weight: 5
 | `intervalJitterPercent` | `int` | An optional jitter amount as a percentage of interval_ms. If specified, during every interval Envoy will add interval_ms * interval_jitter_percent / 100 to the wait time. If interval_jitter_ms and interval_jitter_percent are both set, both of them will be used to increase the wait time. |  |
 | `unhealthyThreshold` | [.google.protobuf.UInt32Value](https://developers.google.com/protocol-buffers/docs/reference/csharp/class/google/protobuf/well-known-types/u-int-32-value) | The number of unhealthy health checks required before a host is marked unhealthy. Note that for *http* health checking if a host responds with 503 this threshold is ignored and the host is considered unhealthy immediately. |  |
 | `healthyThreshold` | [.google.protobuf.UInt32Value](https://developers.google.com/protocol-buffers/docs/reference/csharp/class/google/protobuf/well-known-types/u-int-32-value) | The number of healthy health checks required before a host is marked healthy. Note that during startup, only a single successful health check is required to mark a host healthy. |  |
-| `altPort` | [.google.protobuf.UInt32Value](https://developers.google.com/protocol-buffers/docs/reference/csharp/class/google/protobuf/well-known-types/u-int-32-value) | [#not-implemented-hide:] Non-serving port for health checking. |  |
 | `reuseConnection` | [.google.protobuf.BoolValue](https://developers.google.com/protocol-buffers/docs/reference/csharp/class/google/protobuf/well-known-types/bool-value) | Reuse health check connection between health checks. Default is true. |  |
 | `httpHealthCheck` | [.envoy.api.v2.core.HealthCheck.HttpHealthCheck](../health_check.proto.sk#httphealthcheck) | HTTP health check. |  |
 | `tcpHealthCheck` | [.envoy.api.v2.core.HealthCheck.TcpHealthCheck](../health_check.proto.sk#tcphealthcheck) | TCP health check. |  |
@@ -96,14 +94,12 @@ Describes the encoding of the payload bytes in the payload.
 
 ```yaml
 "text": string
-"binary": bytes
 
 ```
 
 | Field | Type | Description | Default |
 | ----- | ---- | ----------- |----------- | 
 | `text` | `string` | Hex encoded payload. E.g., "000000FF". |  |
-| `binary` | `bytes` | [#not-implemented-hide:] Binary payload. |  |
 
 
 
