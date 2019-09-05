@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/solo-io/gloo/pkg/utils"
@@ -64,8 +63,6 @@ var _ = Describe("GRPC Plugin", func() {
 		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
 		_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 		Expect(err).NotTo(HaveOccurred())
-
-		Eventually(func() error { return envoyInstance.SetPanicThreshold() }, time.Second*5, time.Second/4).Should(BeNil())
 	})
 
 	AfterEach(func() {
@@ -74,46 +71,6 @@ var _ = Describe("GRPC Plugin", func() {
 		}
 		cancel()
 	})
-
-	getGrpcVs := func() *gatewayv1.VirtualService {
-		return &gatewayv1.VirtualService{
-			Metadata: core.Metadata{
-				Name:      "default",
-				Namespace: writeNamespace,
-			},
-			VirtualHost: &gloov1.VirtualHost{
-				Routes: []*gloov1.Route{
-					{
-						Matcher: &gloov1.Matcher{
-							PathSpecifier: &gloov1.Matcher_Prefix{
-								Prefix: "/test",
-							},
-						},
-						Action: &gloov1.Route_RouteAction{
-							RouteAction: &gloov1.RouteAction{
-								Destination: &gloov1.RouteAction_Single{
-									Single: &gloov1.Destination{
-										DestinationType: &gloov1.Destination_Upstream{
-											Upstream: utils.ResourceRefPtr(tu.Upstream.Metadata.Ref()),
-										},
-										DestinationSpec: &gloov1.DestinationSpec{
-											DestinationType: &gloov1.DestinationSpec_Grpc{
-												Grpc: &grpc.DestinationSpec{
-													Package:  "glootest",
-													Function: "TestMethod",
-													Service:  "TestService",
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-	}
 
 	basicReq := func(b []byte) func() (string, error) {
 		return func() (string, error) {
@@ -132,7 +89,7 @@ var _ = Describe("GRPC Plugin", func() {
 
 	It("Routes to GRPC Functions", func() {
 
-		vs := getGrpcVs()
+		vs := getGrpcVs(writeNamespace, tu.Upstream.Metadata.Ref())
 		_, err := testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -149,7 +106,7 @@ var _ = Describe("GRPC Plugin", func() {
 
 	It("Routes to GRPC Functions with parameters", func() {
 
-		vs := getGrpcVs()
+		vs := getGrpcVs(writeNamespace, tu.Upstream.Metadata.Ref())
 		grpc := vs.VirtualHost.Routes[0].GetRouteAction().GetSingle().GetDestinationSpec().GetGrpc()
 		grpc.Parameters = &transformation.Parameters{
 			Path: &types.StringValue{Value: "/test/{str}"},
@@ -173,53 +130,44 @@ var _ = Describe("GRPC Plugin", func() {
 			"GRPCRequest": PointTo(Equal(glootest.TestRequest{Str: "foo"})),
 		}))))
 	})
+})
 
-	Context("health checks", func() {
-
-		BeforeEach(func() {
-			vs := getGrpcVs()
-			_, err := testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
-			Expect(err).NotTo(HaveOccurred())
-
-			us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
-			Expect(err).NotTo(HaveOccurred())
-
-			us.GetUpstreamSpec().HealthChecks = []*gloov1.HealthCheckConfig{
+func getGrpcVs(writeNamespace string, usRef core.ResourceRef) *gatewayv1.VirtualService {
+	return &gatewayv1.VirtualService{
+		Metadata: core.Metadata{
+			Name:      "default",
+			Namespace: writeNamespace,
+		},
+		VirtualHost: &gloov1.VirtualHost{
+			Routes: []*gloov1.Route{
 				{
-					HealthChecker: &gloov1.HealthCheckConfig_GrpcHealthCheck_{
-						GrpcHealthCheck: &gloov1.HealthCheckConfig_GrpcHealthCheck{
-							ServiceName: "TestService",
+					Matcher: &gloov1.Matcher{
+						PathSpecifier: &gloov1.Matcher_Prefix{
+							Prefix: "/test",
+						},
+					},
+					Action: &gloov1.Route_RouteAction{
+						RouteAction: &gloov1.RouteAction{
+							Destination: &gloov1.RouteAction_Single{
+								Single: &gloov1.Destination{
+									DestinationType: &gloov1.Destination_Upstream{
+										Upstream: utils.ResourceRefPtr(usRef),
+									},
+									DestinationSpec: &gloov1.DestinationSpec{
+										DestinationType: &gloov1.DestinationSpec_Grpc{
+											Grpc: &grpc.DestinationSpec{
+												Package:  "glootest",
+												Function: "TestMethod",
+												Service:  "TestService",
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 				},
-			}
-
-			_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
-				OverwriteExisting: true,
-			})
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		It("Fail all but one GRPC health check", func() {
-			liveService := tu.FailGrpcHealthCheck()
-			body := []byte(`{"str": "foo"}`)
-			testRequest := basicReq(body)
-
-			numRequests := 5
-
-			for i := 0; i < numRequests; i++ {
-				Eventually(testRequest, 30, 1).Should(Equal(`{"str":"foo"}`))
-			}
-
-			for i := 0; i < numRequests; i++ {
-				select {
-				case v := <-tu.C:
-					Expect(v.Port).To(Equal(liveService.Port))
-				case <-time.After(5 * time.Second):
-					Fail("channel did not receive proper response in time")
-				}
-			}
-		})
-	})
-
-})
+			},
+		},
+	}
+}

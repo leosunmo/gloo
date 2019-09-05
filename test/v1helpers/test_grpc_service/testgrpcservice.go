@@ -37,7 +37,7 @@ func RunServer(ctx context.Context) *TestGRPCServer {
 	reflection.Register(grpcServer)
 	srv := newServer()
 	hc := NewHealthChecker(health.NewServer())
-	healthpb.RegisterHealthServer(grpcServer, hc)
+	healthpb.RegisterHealthServer(grpcServer, hc.grpc)
 	glootest.RegisterTestServiceServer(grpcServer, srv)
 	glootest.RegisterTestService2Server(grpcServer, srv)
 	go grpcServer.Serve(lis)
@@ -98,8 +98,6 @@ type healthChecker struct {
 	ok   uint32
 }
 
-var _ healthpb.HealthServer = &healthChecker{}
-
 func NewHealthChecker(grpcHealthServer *health.Server) *healthChecker {
 	ret := &healthChecker{}
 	ret.ok = 1
@@ -117,10 +115,6 @@ func NewHealthChecker(grpcHealthServer *health.Server) *healthChecker {
 	}()
 
 	return ret
-}
-
-func (h *healthChecker) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
-	return h.grpc.Check(ctx, in)
 }
 
 func (hc *healthChecker) Fail() {
