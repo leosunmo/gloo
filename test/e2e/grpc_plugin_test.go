@@ -138,15 +138,15 @@ func getGrpcVs(writeNamespace string, usRef core.ResourceRef) *gatewayv1.Virtual
 			Name:      "default",
 			Namespace: writeNamespace,
 		},
-		VirtualHost: &gloov1.VirtualHost{
-			Routes: []*gloov1.Route{
+		VirtualHost: &gatewayv1.VirtualHost{
+			Routes: []*gatewayv1.Route{
 				{
 					Matcher: &gloov1.Matcher{
 						PathSpecifier: &gloov1.Matcher_Prefix{
 							Prefix: "/test",
 						},
 					},
-					Action: &gloov1.Route_RouteAction{
+					Action: &gatewayv1.Route_RouteAction{
 						RouteAction: &gloov1.RouteAction{
 							Destination: &gloov1.RouteAction_Single{
 								Single: &gloov1.Destination{

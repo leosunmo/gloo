@@ -6,6 +6,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
+
 	v1 "github.com/solo-io/gloo/projects/gateway/pkg/api/v1"
 	v2 "github.com/solo-io/gloo/projects/gateway/pkg/api/v2"
 	gloov1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
@@ -31,7 +34,7 @@ func (t *HttpTranslator) GenerateListeners(ctx context.Context, snap *v2.ApiSnap
 		virtualServices := getVirtualServiceForGateway(gateway, snap.VirtualServices, resourceErrs)
 		filtered := filterVirtualServiceForGateway(gateway, virtualServices)
 		mergedVirtualServices := validateAndMergeVirtualServices(gateway, filtered, resourceErrs)
-		listener := desiredListenerForHttp(gateway, mergedVirtualServices)
+		listener := desiredListenerForHttp(gateway, mergedVirtualServices, snap.RouteTables, resourceErrs)
 		result = append(result, listener)
 	}
 	return result
@@ -82,7 +85,7 @@ func validateAndMergeVirtualServices(gateway *v2.Gateway, virtualServices v1.Vir
 		}
 
 		// take the first one as they are all the same
-		var routes []*gloov1.Route
+		var routes []*v1.Route
 		var sslConfig *gloov1.SslConfig
 		var vhostPlugins *gloov1.VirtualHostPlugins
 		for _, vs := range vslist {
@@ -105,7 +108,7 @@ func validateAndMergeVirtualServices(gateway *v2.Gateway, virtualServices v1.Vir
 			}
 		}
 
-		glooutils.SortRoutesByPath(routes)
+		glooutils.SortGatewayRoutesByPath(routes)
 
 		ref := core.Metadata{
 			// name shouldnt matter as it this object is ephemeral.
@@ -113,10 +116,9 @@ func validateAndMergeVirtualServices(gateway *v2.Gateway, virtualServices v1.Vir
 			Namespace: ns,
 		}
 		mergedVs := &v1.VirtualService{
-			VirtualHost: &gloov1.VirtualHost{
+			VirtualHost: &v1.VirtualHost{
 				Domains:            vslist[0].VirtualHost.Domains,
 				Routes:             routes,
-				Name:               fmt.Sprintf("%v.%v", ref.Namespace, ref.Name),
 				VirtualHostPlugins: vhostPlugins,
 			},
 			SslConfig: sslConfig,
@@ -178,19 +180,23 @@ func hasSsl(vs *v1.VirtualService) bool {
 	return vs.SslConfig != nil
 }
 
-func desiredListenerForHttp(gateway *v2.Gateway, virtualServicesForGateway v1.VirtualServiceList) *gloov1.Listener {
+func desiredListenerForHttp(gateway *v2.Gateway, virtualServicesForGateway v1.VirtualServiceList, tables v1.RouteTableList, resourceErrs reporter.ResourceErrors) *gloov1.Listener {
 	var (
 		virtualHosts []*gloov1.VirtualHost
 		sslConfigs   []*gloov1.SslConfig
 	)
 
-	for _, virtualService := range virtualServicesForGateway {
+	for _, virtualService := range virtualServicesForGateway.Sort() {
 		ref := virtualService.Metadata.Ref()
 		if virtualService.VirtualHost == nil {
-			virtualService.VirtualHost = &gloov1.VirtualHost{}
+			virtualService.VirtualHost = &v1.VirtualHost{}
 		}
-		virtualService.VirtualHost.Name = fmt.Sprintf("%v.%v", ref.Namespace, ref.Name)
-		virtualHosts = append(virtualHosts, virtualService.VirtualHost)
+		vh, err := convertVirtualHost(ref, virtualService.VirtualHost, tables)
+		if err != nil {
+			resourceErrs.AddError(gateway, err)
+			continue
+		}
+		virtualHosts = append(virtualHosts, vh)
 		if virtualService.SslConfig != nil {
 			sslConfigs = append(sslConfigs, virtualService.SslConfig)
 		}
@@ -209,4 +215,139 @@ func desiredListenerForHttp(gateway *v2.Gateway, virtualServicesForGateway v1.Vi
 	}
 	listener.SslConfigurations = sslConfigs
 	return listener
+}
+
+func convertVirtualHost(vs core.ResourceRef, ours *v1.VirtualHost, tables v1.RouteTableList) (*gloov1.VirtualHost, error) {
+	routes, err := convertRoutes(ours.Routes, tables)
+	if err != nil {
+		return nil, err
+	}
+
+	vh := &gloov1.VirtualHost{
+		Name:               fmt.Sprintf("%v.%v", vs.Namespace, vs.Name),
+		Domains:            ours.Domains,
+		Routes:             routes,
+		VirtualHostPlugins: ours.VirtualHostPlugins,
+		// TODO: remove on next breaking change
+		CorsPolicy: ours.CorsPolicy,
+	}
+
+	return vh, nil
+}
+
+func convertRoutes(ours []*v1.Route, tables v1.RouteTableList) ([]*gloov1.Route, error) {
+	var routes []*gloov1.Route
+	for _, r := range ours {
+		rv := &routeVisitor{tables: tables}
+		mergedRoutes, err := rv.convertRoute(r)
+		if err != nil {
+			return nil, err
+		}
+		routes = append(routes, mergedRoutes...)
+	}
+	return routes, nil
+}
+
+// converts a tree of gateway Routes into a list of Gloo routes
+type routeVisitor struct {
+	tables  v1.RouteTableList
+	visited v1.RouteTableList
+}
+
+func (rv *routeVisitor) convertRoute(ours *v1.Route) ([]*gloov1.Route, error) {
+	route := &gloov1.Route{
+		Matcher:      ours.Matcher,
+		RoutePlugins: ours.RoutePlugins,
+	}
+	switch action := ours.Action.(type) {
+	case *v1.Route_RedirectAction:
+		route.Action = &gloov1.Route_RedirectAction{
+			RedirectAction: action.RedirectAction,
+		}
+	case *v1.Route_DirectResponseAction:
+		route.Action = &gloov1.Route_DirectResponseAction{
+			DirectResponseAction: action.DirectResponseAction,
+		}
+	case *v1.Route_RouteAction:
+		route.Action = &gloov1.Route_RouteAction{
+			RouteAction: action.RouteAction,
+		}
+	case *v1.Route_DelegateAction:
+		return rv.convertDelegateAction(ours)
+	}
+	return []*gloov1.Route{route}, nil
+}
+
+var (
+	missingPrefixErr    = errors.Errorf("invalid route: routes with delegate actions must specify a prefix matcher")
+	hasHeaderMatcherErr = errors.Errorf("invalid route: routes with delegate actions cannot use header matchers")
+	hasMethodMatcherErr = errors.Errorf("invalid route: routes with delegate actions cannot use method matchers")
+	hasQueryMatcherErr  = errors.Errorf("invalid route: routes with delegate actions cannot use query matchers")
+	delegationCycleErr  = errors.Errorf("invalid route: delegation cycle detected")
+
+	noDelegateActionErr = errors.Errorf("internal error: convertDelegateAction() called on route without delegate action")
+)
+
+func (rv *routeVisitor) convertDelegateAction(ours *v1.Route) ([]*gloov1.Route, error) {
+	action := ours.GetDelegateAction()
+	if action == nil {
+		return nil, noDelegateActionErr
+	}
+
+	matcher := ours.GetMatcher()
+
+	prefix := matcher.GetPrefix()
+	if prefix == "" {
+		return nil, missingPrefixErr
+	}
+	prefix = "/" + strings.Trim(prefix, "/")
+
+	if len(matcher.GetHeaders()) > 0 {
+		return nil, hasHeaderMatcherErr
+	}
+	if len(matcher.GetMethods()) > 0 {
+		return nil, hasMethodMatcherErr
+	}
+	if len(matcher.GetQueryParameters()) > 0 {
+		return nil, hasQueryMatcherErr
+	}
+	routeTable, err := rv.tables.Find(action.Strings())
+	if err != nil {
+		return nil, err
+	}
+	for _, visited := range rv.visited {
+		if routeTable == visited {
+			return nil, delegationCycleErr
+		}
+	}
+
+	subRv := &routeVisitor{tables: rv.tables, visited: []*v1.RouteTable{routeTable}}
+	for _, vis := range rv.visited {
+		subRv.visited = append(subRv.visited, vis)
+	}
+	var delegatedRoutes []*gloov1.Route
+	for _, route := range routeTable.Routes {
+		route := proto.Clone(route).(*v1.Route)
+		subRoutes, err := subRv.convertRoute(route)
+		if err != nil {
+			return nil, errors.Wrapf(err, "converting sub-route")
+		}
+		for _, sub := range subRoutes {
+			switch path := sub.Matcher.PathSpecifier.(type) {
+			case *gloov1.Matcher_Exact:
+				path.Exact = prefix + path.Exact
+			case *gloov1.Matcher_Regex:
+				path.Regex = prefix + path.Regex
+			case *gloov1.Matcher_Prefix:
+				path.Prefix = prefix + path.Prefix
+			}
+			// inherit route plugins from parent
+			if sub.RoutePlugins == nil {
+				sub.RoutePlugins = proto.Clone(ours.RoutePlugins).(*gloov1.RoutePlugins)
+			}
+			delegatedRoutes = append(delegatedRoutes, sub)
+		}
+	}
+
+	return delegatedRoutes, nil
 }
