@@ -342,9 +342,6 @@ var _ = Describe("Translator", func() {
 	})
 
 	Context("Health check config", func() {
-
-
-
 		It("will error if required field is nil", func() {
 			upstream.UpstreamSpec.HealthChecks = []*envoycore.HealthCheck{
 				{
@@ -358,9 +355,9 @@ var _ = Describe("Translator", func() {
 		It("will error if no health checker is supplied", func() {
 			upstream.UpstreamSpec.HealthChecks = []*envoycore.HealthCheck{
 				{
-					Timeout:  &DefaultHealthCheckTimeout,
-					Interval: &DefaultHealthCheckInterval,
-					HealthyThreshold: DefaultThreshold,
+					Timeout:            &DefaultHealthCheckTimeout,
+					Interval:           &DefaultHealthCheckInterval,
+					HealthyThreshold:   DefaultThreshold,
 					UnhealthyThreshold: DefaultThreshold,
 				},
 			}
@@ -370,9 +367,9 @@ var _ = Describe("Translator", func() {
 		It("can translate the http health check", func() {
 			expectedResult := []*envoycore.HealthCheck{
 				{
-					Timeout:  &DefaultHealthCheckTimeout,
-					Interval: &DefaultHealthCheckInterval,
-					HealthyThreshold: DefaultThreshold,
+					Timeout:            &DefaultHealthCheckTimeout,
+					Interval:           &DefaultHealthCheckInterval,
+					HealthyThreshold:   DefaultThreshold,
 					UnhealthyThreshold: DefaultThreshold,
 					HealthChecker: &envoycore.HealthCheck_HttpHealthCheck_{
 						HttpHealthCheck: &envoycore.HealthCheck_HttpHealthCheck{
@@ -392,9 +389,9 @@ var _ = Describe("Translator", func() {
 		It("can translate the grpc health check", func() {
 			expectedResult := []*envoycore.HealthCheck{
 				{
-					Timeout:  &DefaultHealthCheckTimeout,
-					Interval: &DefaultHealthCheckInterval,
-					HealthyThreshold: DefaultThreshold,
+					Timeout:            &DefaultHealthCheckTimeout,
+					Interval:           &DefaultHealthCheckInterval,
+					HealthyThreshold:   DefaultThreshold,
 					UnhealthyThreshold: DefaultThreshold,
 					HealthChecker: &envoycore.HealthCheck_GrpcHealthCheck_{
 						GrpcHealthCheck: &envoycore.HealthCheck_GrpcHealthCheck{
@@ -407,6 +404,39 @@ var _ = Describe("Translator", func() {
 			upstream.UpstreamSpec.HealthChecks = expectedResult
 			translate()
 			Expect(cluster.HealthChecks).To(BeEquivalentTo(expectedResult))
+		})
+
+		It("can properly translate outlier detection config", func() {
+			dur := &types.Duration{Seconds: 1}
+			expectedResult := &envoycluster.OutlierDetection{
+				Consecutive_5Xx:                        DefaultThreshold,
+				Interval:                               dur,
+				BaseEjectionTime:                       dur,
+				MaxEjectionPercent:                     DefaultThreshold,
+				EnforcingConsecutive_5Xx:               DefaultThreshold,
+				EnforcingSuccessRate:                   DefaultThreshold,
+				SuccessRateMinimumHosts:                DefaultThreshold,
+				SuccessRateRequestVolume:               DefaultThreshold,
+				SuccessRateStdevFactor:                 nil,
+				ConsecutiveGatewayFailure:              DefaultThreshold,
+				EnforcingConsecutiveGatewayFailure:     nil,
+				SplitExternalLocalOriginErrors:         true,
+				ConsecutiveLocalOriginFailure:          nil,
+				EnforcingConsecutiveLocalOriginFailure: nil,
+				EnforcingLocalOriginSuccessRate:        nil,
+			}
+			upstream.UpstreamSpec.OutlierDetection = expectedResult
+			translate()
+			Expect(cluster.OutlierDetection).To(BeEquivalentTo(expectedResult))
+		})
+
+		It("can properly validate outlier detection config", func() {
+			dur := &types.Duration{Seconds: 0}
+			expectedResult := &envoycluster.OutlierDetection{
+				Interval:                               dur,
+			}
+			upstream.UpstreamSpec.OutlierDetection = expectedResult
+			translateWithError()
 		})
 
 	})

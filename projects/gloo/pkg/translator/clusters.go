@@ -125,6 +125,7 @@ func createOutlierDetectionConfig(upstream *v1.Upstream) (*envoycluster.OutlierD
 	if spec == nil {
 		return nil, nil
 	}
+	// This should be enough validation as nothing implicitly needs to be set
 	if err := spec.GetOutlierDetection().Validate(); err != nil {
 		return nil, err
 	}
