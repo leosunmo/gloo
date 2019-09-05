@@ -7,7 +7,6 @@ import (
 	envoycluster "github.com/envoyproxy/go-control-plane/envoy/api/v2/cluster"
 	envoycore "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/gogo/protobuf/types"
-
 	"github.com/pkg/errors"
 	v1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
 	"github.com/solo-io/gloo/projects/gloo/pkg/plugins"
@@ -59,11 +58,12 @@ func (t *translator) computeCluster(params plugins.Params, upstream *v1.Upstream
 
 func (t *translator) initializeCluster(upstream *v1.Upstream, endpoints []*v1.Endpoint) *envoyapi.Cluster {
 	out := &envoyapi.Cluster{
-		Name:            UpstreamToClusterName(upstream.Metadata.Ref()),
-		Metadata:        new(envoycore.Metadata),
-		CircuitBreakers: getCircuitBreakers(upstream.UpstreamSpec.CircuitBreakers, t.settings.CircuitBreakers),
-		LbSubsetConfig:  createLbConfig(upstream),
-		HealthChecks:    createHealthCheckConfig(upstream),
+		Name:             UpstreamToClusterName(upstream.Metadata.Ref()),
+		Metadata:         new(envoycore.Metadata),
+		CircuitBreakers:  getCircuitBreakers(upstream.UpstreamSpec.CircuitBreakers, t.settings.CircuitBreakers),
+		LbSubsetConfig:   createLbConfig(upstream),
+		HealthChecks:     createHealthCheckConfig(upstream),
+		OutlierDetection: createOutlierDetectionConfig(upstream),
 		// this field can be overridden by plugins
 		ConnectTimeout:       ClusterConnectionTimeout,
 		Http2ProtocolOptions: getHttp2ptions(upstream.UpstreamSpec),
@@ -75,6 +75,7 @@ func (t *translator) initializeCluster(upstream *v1.Upstream, endpoints []*v1.En
 	return out
 }
 
+
 var (
 	defaultHealthCheckTimeout  = time.Second * 5
 	defaultHealthCheckInterval = time.Millisecond * 100
@@ -84,56 +85,36 @@ var (
 )
 
 func createHealthCheckConfig(upstream *v1.Upstream) []*envoycore.HealthCheck {
-	var result []*envoycore.HealthCheck
+
 	if upstream.GetUpstreamSpec() == nil {
-		return result
+		return nil
 	}
+	result :=  make([]*envoycore.HealthCheck, 0, len(upstream.GetUpstreamSpec().GetHealthChecks()))
 	for _, hc := range upstream.GetUpstreamSpec().GetHealthChecks() {
-
-		translatedHc := &envoycore.HealthCheck{
-			Timeout:                      hc.GetTimeout(),
-			Interval:                     hc.GetInterval(),
-			UnhealthyThreshold:           hc.GetUnhealthyThreshold(),
-			HealthyThreshold:             hc.GetUnhealthyThreshold(),
-			AlwaysLogHealthCheckFailures: true,
+		if hc.GetTimeout() == nil {
+			hc.Timeout = &defaultHealthCheckTimeout
+		}
+		if hc.GetInterval() == nil {
+			hc.Interval = &defaultHealthCheckInterval
+		}
+		if hc.HealthyThreshold == nil {
+			hc.HealthyThreshold = defaultThreshold
+		}
+		if hc.UnhealthyThreshold == nil {
+			hc.UnhealthyThreshold = defaultThreshold
 		}
 
-		if translatedHc.GetTimeout() == nil {
-			translatedHc.Timeout = &defaultHealthCheckTimeout
-		}
-		if translatedHc.GetInterval() == nil {
-			translatedHc.Interval = &defaultHealthCheckInterval
-		}
-		if translatedHc.HealthyThreshold == nil {
-			translatedHc.HealthyThreshold = defaultThreshold
-		}
-		if translatedHc.UnhealthyThreshold == nil {
-			translatedHc.UnhealthyThreshold = defaultThreshold
-		}
-
-		switch healthChecker := hc.GetHealthChecker().(type) {
-		case *v1.HealthCheckConfig_GrpcHealthCheck_:
-			translatedHc.HealthChecker = &envoycore.HealthCheck_GrpcHealthCheck_{
-				GrpcHealthCheck: &envoycore.HealthCheck_GrpcHealthCheck{
-					ServiceName: healthChecker.GrpcHealthCheck.ServiceName,
-					Authority:   healthChecker.GrpcHealthCheck.Authority,
-				},
-			}
-		case *v1.HealthCheckConfig_HttpHealthCheck_:
-			translatedHc.HealthChecker = &envoycore.HealthCheck_HttpHealthCheck_{
-				HttpHealthCheck: &envoycore.HealthCheck_HttpHealthCheck{
-					Host:        healthChecker.HttpHealthCheck.GetHost(),
-					Path:        healthChecker.HttpHealthCheck.GetPath(),
-					ServiceName: healthChecker.HttpHealthCheck.GetServiceName(),
-					UseHttp2:    healthChecker.HttpHealthCheck.GetUseHttp2(),
-				},
-			}
-		default:
-			continue
-		}
-		result = append(result, translatedHc)
+		result = append(result, hc)
 	}
 	return result
+}
+
+func createOutlierDetectionConfig(upstream *v1.Upstream) *envoycluster.OutlierDetection {
+	spec := upstream.GetUpstreamSpec()
+	if spec == nil {
+		return nil
+	}
+	return spec.GetOutlierDetection()
 }
 
 func createLbConfig(upstream *v1.Upstream) *envoyapi.Cluster_LbSubsetConfig {

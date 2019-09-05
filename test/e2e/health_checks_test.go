@@ -8,16 +8,16 @@ import (
 	"net/http"
 	"time"
 
+	envoycore "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	gloov1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
 	"github.com/solo-io/gloo/projects/gloo/pkg/defaults"
 	"github.com/solo-io/gloo/test/services"
 	"github.com/solo-io/gloo/test/v1helpers"
 	"github.com/solo-io/solo-kit/pkg/api/v1/clients"
 )
 
-var _ = FDescribe("GRPC Plugin", func() {
+var _ = Describe("GRPC Plugin", func() {
 	var (
 		ctx            context.Context
 		cancel         context.CancelFunc
@@ -51,6 +51,10 @@ var _ = FDescribe("GRPC Plugin", func() {
 		err = envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
 		Expect(err).NotTo(HaveOccurred())
 
+		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
+		_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
+		Expect(err).NotTo(HaveOccurred())
+
 		Eventually(func() error { return envoyInstance.SetPanicThreshold() }, time.Second*5, time.Second/4).Should(BeNil())
 	})
 
@@ -60,26 +64,28 @@ var _ = FDescribe("GRPC Plugin", func() {
 		}
 		cancel()
 	})
-
-	Context("Http", func() {
-		us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
-		Expect(err).NotTo(HaveOccurred())
-
-		us.GetUpstreamSpec().HealthChecks = []*gloov1.HealthCheckConfig{
-			{
-				HealthChecker: &gloov1.HealthCheckConfig_GrpcHealthCheck_{
-					GrpcHealthCheck: &gloov1.HealthCheckConfig_GrpcHealthCheck{
-						ServiceName: "TestService",
-					},
-				},
-			},
-		}
-
-		_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
-			OverwriteExisting: true,
-		})
-		Expect(err).NotTo(HaveOccurred())
-	})
+	//
+	// Context("Http", func() {
+	//
+	// 	BeforeEach(func() {
+	// 		us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
+	// 		Expect(err).NotTo(HaveOccurred())
+	//
+	// 		us.GetUpstreamSpec().HealthChecks = []*envoycore.HealthCheck{
+	// 			{
+	// 				HealthChecker: &envoycore.HealthCheck_HttpHealthCheck_{
+	// 					HttpHealthCheck: &envoycore.HealthCheck_HttpHealthCheck{},
+	// 				},
+	// 			},
+	// 		}
+	//
+	// 		_, err = testClients.UpstreamClient.Write(us, clients.WriteOpts{
+	// 			OverwriteExisting: true,
+	// 		})
+	// 		Expect(err).NotTo(HaveOccurred())
+	// 	})
+	//
+	// })
 
 	Context("GRPC", func() {
 
@@ -107,10 +113,10 @@ var _ = FDescribe("GRPC Plugin", func() {
 			us, err := testClients.UpstreamClient.Read(tu.Upstream.Metadata.Namespace, tu.Upstream.Metadata.Name, clients.ReadOpts{})
 			Expect(err).NotTo(HaveOccurred())
 
-			us.GetUpstreamSpec().HealthChecks = []*gloov1.HealthCheckConfig{
+			us.GetUpstreamSpec().HealthChecks = []*envoycore.HealthCheck{
 				{
-					HealthChecker: &gloov1.HealthCheckConfig_GrpcHealthCheck_{
-						GrpcHealthCheck: &gloov1.HealthCheckConfig_GrpcHealthCheck{
+					HealthChecker: &envoycore.HealthCheck_GrpcHealthCheck_{
+						GrpcHealthCheck: &envoycore.HealthCheck_GrpcHealthCheck{
 							ServiceName: "TestService",
 						},
 					},

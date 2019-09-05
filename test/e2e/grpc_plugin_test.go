@@ -60,7 +60,7 @@ var _ = Describe("GRPC Plugin", func() {
 		err = envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
 		Expect(err).NotTo(HaveOccurred())
 
-		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 5)
+		tu = v1helpers.NewTestGRPCUpstream(ctx, envoyInstance.LocalAddr(), 1)
 		_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 		Expect(err).NotTo(HaveOccurred())
 	})

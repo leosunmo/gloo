@@ -11,7 +11,6 @@ import "github.com/solo-io/gloo/projects/gloo/api/v1/ssl.proto";
 import "github.com/solo-io/gloo/projects/gloo/api/v1/extensions.proto";
 import "github.com/solo-io/gloo/projects/gloo/api/v1/circuit_breaker.proto";
 import "github.com/solo-io/gloo/projects/gloo/api/v1/load_balancer.proto";
-import "github.com/solo-io/gloo/projects/gloo/api/v1/health_check.proto";
 import "github.com/solo-io/gloo/projects/gloo/api/v1/connection.proto";
 
 import "github.com/solo-io/gloo/projects/gloo/api/v1/plugins/aws/aws.proto";
@@ -38,6 +37,9 @@ import "github.com/solo-io/gloo/projects/gloo/api/v1/plugins/transformation/tran
 import "github.com/solo-io/gloo/projects/gloo/api/v1/plugins/faultinjection/fault.proto";
 import "github.com/solo-io/gloo/projects/gloo/api/v1/plugins/headers/headers.proto";
 import "github.com/solo-io/gloo/projects/gloo/api/v1/plugins/hostrewrite/hostrewrite.proto";
+
+import "github.com/solo-io/gloo/projects/gloo/api/external/envoy/api/v2/cluster/outlier_detection.proto";
+import "github.com/solo-io/gloo/projects/gloo/api/external/envoy/api/v2/core/health_check.proto";
 
 import "google/protobuf/duration.proto";
 
@@ -145,8 +147,8 @@ message UpstreamSpec {
     CircuitBreakerConfig circuit_breakers = 2;
     LoadBalancerConfig load_balancer_config = 3;
     ConnectionConfig connection_config = 4;
-    repeated HealthCheckConfig health_checks = 5;
-    OutlierDetection outlier_detection = 6;
+    repeated envoy.api.v2.core.HealthCheck health_checks = 5;
+    envoy.api.v2.cluster.OutlierDetection outlier_detection = 6;
 
     // Use http2 when communicating with this upstream
     // this field is evaluated `true` for upstreams
