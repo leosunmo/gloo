@@ -184,19 +184,19 @@ message HealthCheck {
     }
 
     oneof health_checker {
-    option (validate.required) = true;
+        option (validate.required) = true;
 
-    // HTTP health check.
-    HttpHealthCheck http_health_check = 8;
+        // HTTP health check.
+        HttpHealthCheck http_health_check = 8;
 
-    // TCP health check.
-    TcpHealthCheck tcp_health_check = 9;
+        // TCP health check.
+        TcpHealthCheck tcp_health_check = 9;
 
-    // gRPC health check.
-    GrpcHealthCheck grpc_health_check = 11;
+        // gRPC health check.
+        GrpcHealthCheck grpc_health_check = 11;
 
-    // Custom health check.
-    CustomHealthCheck custom_health_check = 13;
+        // Custom health check.
+        CustomHealthCheck custom_health_check = 13;
     }
 
     reserved 10; // redis_health_check is deprecated by :ref:`custom_health_check

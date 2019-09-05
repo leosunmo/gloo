@@ -3,7 +3,6 @@ package translator_test
 import (
 	"context"
 	"fmt"
-	"time"
 
 	envoycore "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	envoyrouteapi "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
@@ -187,6 +186,12 @@ var _ = Describe("Translator", func() {
 		}
 	})
 
+	translateWithError := func() {
+		_, errs, err := translator.Translate(params, proxy)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(errs.Validate()).To(HaveOccurred())
+	}
+
 	translate := func() {
 
 		snap, errs, err := translator.Translate(params, proxy)
@@ -338,27 +343,37 @@ var _ = Describe("Translator", func() {
 
 	Context("Health check config", func() {
 
-		var (
-			defaultTimeout  = time.Duration(100)
-			defaultInterval = time.Duration(200)
-		)
 
-		It("will return nothing if type isn't set", func() {
-			upstream.UpstreamSpec.HealthChecks = []*v1.HealthCheckConfig{
+
+		It("will error if required field is nil", func() {
+			upstream.UpstreamSpec.HealthChecks = []*envoycore.HealthCheck{
 				{
-					Timeout:  &defaultTimeout,
-					Interval: &defaultInterval,
+					// Timeout:  &defaultTimeout,
+					Interval: &DefaultHealthCheckInterval,
 				},
 			}
-			translate()
-			Expect(cluster.HealthChecks).To(BeNil())
+			translateWithError()
+		})
+
+		It("will error if no health checker is supplied", func() {
+			upstream.UpstreamSpec.HealthChecks = []*envoycore.HealthCheck{
+				{
+					Timeout:  &DefaultHealthCheckTimeout,
+					Interval: &DefaultHealthCheckInterval,
+					HealthyThreshold: DefaultThreshold,
+					UnhealthyThreshold: DefaultThreshold,
+				},
+			}
+			translateWithError()
 		})
 
 		It("can translate the http health check", func() {
 			expectedResult := []*envoycore.HealthCheck{
 				{
-					Timeout:  &defaultTimeout,
-					Interval: &defaultInterval,
+					Timeout:  &DefaultHealthCheckTimeout,
+					Interval: &DefaultHealthCheckInterval,
+					HealthyThreshold: DefaultThreshold,
+					UnhealthyThreshold: DefaultThreshold,
 					HealthChecker: &envoycore.HealthCheck_HttpHealthCheck_{
 						HttpHealthCheck: &envoycore.HealthCheck_HttpHealthCheck{
 							Host:        "host",
@@ -369,20 +384,7 @@ var _ = Describe("Translator", func() {
 					},
 				},
 			}
-			upstream.UpstreamSpec.HealthChecks = []*v1.HealthCheckConfig{
-				{
-					Timeout:  &defaultTimeout,
-					Interval: &defaultInterval,
-					HealthChecker: &v1.HealthCheckConfig_HttpHealthCheck_{
-						HttpHealthCheck: &v1.HealthCheckConfig_HttpHealthCheck{
-							Host:        "host",
-							Path:        "path",
-							ServiceName: "svc",
-							UseHttp2:    true,
-						},
-					},
-				},
-			}
+			upstream.UpstreamSpec.HealthChecks = expectedResult
 			translate()
 			Expect(cluster.HealthChecks).To(BeEquivalentTo(expectedResult))
 		})
@@ -390,8 +392,10 @@ var _ = Describe("Translator", func() {
 		It("can translate the grpc health check", func() {
 			expectedResult := []*envoycore.HealthCheck{
 				{
-					Timeout:  &defaultTimeout,
-					Interval: &defaultInterval,
+					Timeout:  &DefaultHealthCheckTimeout,
+					Interval: &DefaultHealthCheckInterval,
+					HealthyThreshold: DefaultThreshold,
+					UnhealthyThreshold: DefaultThreshold,
 					HealthChecker: &envoycore.HealthCheck_GrpcHealthCheck_{
 						GrpcHealthCheck: &envoycore.HealthCheck_GrpcHealthCheck{
 							ServiceName: "svc",
@@ -400,18 +404,7 @@ var _ = Describe("Translator", func() {
 					},
 				},
 			}
-			upstream.UpstreamSpec.HealthChecks = []*v1.HealthCheckConfig{
-				{
-					Timeout:  &defaultTimeout,
-					Interval: &defaultInterval,
-					HealthChecker: &v1.HealthCheckConfig_GrpcHealthCheck_{
-						GrpcHealthCheck: &v1.HealthCheckConfig_GrpcHealthCheck{
-							ServiceName: "svc",
-							Authority:   "authority",
-						},
-					},
-				},
-			}
+			upstream.UpstreamSpec.HealthChecks = expectedResult
 			translate()
 			Expect(cluster.HealthChecks).To(BeEquivalentTo(expectedResult))
 		})
