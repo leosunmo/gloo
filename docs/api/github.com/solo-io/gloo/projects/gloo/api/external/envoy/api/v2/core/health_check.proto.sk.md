@@ -113,8 +113,6 @@ Describes the encoding of the payload bytes in the payload.
 ```yaml
 "host": string
 "path": string
-"send": .envoy.api.v2.core.HealthCheck.Payload
-"receive": .envoy.api.v2.core.HealthCheck.Payload
 "serviceName": string
 "requestHeadersToAdd": []envoy.api.v2.core.HeaderValueOption
 "requestHeadersToRemove": []string
@@ -127,8 +125,6 @@ Describes the encoding of the payload bytes in the payload.
 | ----- | ---- | ----------- |----------- | 
 | `host` | `string` | The value of the host header in the HTTP health check request. If left empty (default value), the name of the cluster this health check is associated with will be used. |  |
 | `path` | `string` | Specifies the HTTP path that will be requested during health checking. For example */healthcheck*. |  |
-| `send` | [.envoy.api.v2.core.HealthCheck.Payload](../health_check.proto.sk#payload) | [#not-implemented-hide:] HTTP specific payload. |  |
-| `receive` | [.envoy.api.v2.core.HealthCheck.Payload](../health_check.proto.sk#payload) | [#not-implemented-hide:] HTTP specific response. |  |
 | `serviceName` | `string` | An optional service name parameter which is used to validate the identity of the health checked cluster. See the :ref:`architecture overview <arch_overview_health_checking_identity>` for more information. |  |
 | `requestHeadersToAdd` | [[]envoy.api.v2.core.HeaderValueOption](../../../../../../../../../../../../envoy/api/v2/core/base.proto.sk#headervalueoption) | Specifies a list of HTTP headers that should be added to each request that is sent to the health checked cluster. For more information, including details on header value syntax, see the documentation on :ref:`custom request headers <config_http_conn_man_headers_custom_request_headers>`. |  |
 | `requestHeadersToRemove` | `[]string` | Specifies a list of HTTP headers that should be removed from each request that is sent to the health checked cluster. |  |
