@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"fmt"
+	kubeconverters "github.com/solo-io/gloo/projects/gloo/pkg/api/converters/kube"
 	"os"
 	"sync"
 	"time"
@@ -392,9 +393,16 @@ func secretClient() (v1.SecretClient, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	converterChain := kubeconverters.NewSecretConverterChain(
+		new(kubeconverters.TLSSecretConverter),
+		new(kubeconverters.AwsSecretConverter),
+	)
+
 	secretClient, err := v1.NewSecretClient(&factory.KubeSecretClientFactory{
-		Clientset: clientset,
-		Cache:     coreCache,
+		Clientset:       clientset,
+		Cache:           coreCache,
+		SecretConverter: converterChain,
 	})
 	if err != nil {
 		return nil, errors.Wrapf(err, "creating Secrets client")
