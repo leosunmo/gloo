@@ -106,8 +106,10 @@ func handleAccessLogPlugins(service *als.AccessLoggingService, logCfg []*envoyal
 		switch cfgType := al.GetOutputDestination().(type) {
 		case *als.AccessLog_FileSink:
 			var cfg envoyalcfg.FileAccessLog
-			copyFileSettings(&cfg, cfgType)
-			newAlsCfg, err := translatorutil.NewAccessLogWithConfig(&cfg)
+			if err := copyFileSettings(&cfg, cfgType); err != nil {
+				return nil, err
+			}
+			newAlsCfg, err := translatorutil.NewAccessLogWithConfig(envoyutil.FileAccessLog, &cfg)
 			if err != nil {
 				return nil, err
 			}
@@ -117,7 +119,7 @@ func handleAccessLogPlugins(service *als.AccessLoggingService, logCfg []*envoyal
 			if err := copyGrpcSettings(&cfg, cfgType, params); err != nil {
 				return nil, err
 			}
-			newAlsCfg, err := translatorutil.NewAccessLogWithConfig(&cfg)
+			newAlsCfg, err := translatorutil.NewAccessLogWithConfig(envoyutil.HTTPGRPCAccessLog, &cfg)
 			if err != nil {
 				return nil, err
 			}
@@ -134,7 +136,7 @@ func copyGrpcSettings(cfg *envoyalcfg.HttpGrpcAccessLogConfig, alsSettings *als.
 	}
 	upstreamRef := alsSettings.GrpcService.GetServerRef()
 	if upstreamRef == nil {
-		return errors.New("no ext auth server configured")
+		return errors.New("no access-log server configured")
 	}
 
 	// make sure the server exists:
@@ -157,10 +159,10 @@ func copyGrpcSettings(cfg *envoyalcfg.HttpGrpcAccessLogConfig, alsSettings *als.
 		LogName:     alsSettings.GrpcService.LogName,
 		GrpcService: svc,
 	}
-	return nil
+	return cfg.Validate()
 }
 
-func copyFileSettings(cfg *envoyalcfg.FileAccessLog, alsSettings *als.AccessLog_FileSink) {
+func copyFileSettings(cfg *envoyalcfg.FileAccessLog, alsSettings *als.AccessLog_FileSink) error {
 	cfg.Path = alsSettings.FileSink.Path
 	switch fileSinkType := alsSettings.FileSink.GetOutputFormat().(type) {
 	case *als.FileSink_StringFormat:
@@ -172,4 +174,5 @@ func copyFileSettings(cfg *envoyalcfg.FileAccessLog, alsSettings *als.AccessLog_
 			JsonFormat: fileSinkType.JsonFormat,
 		}
 	}
+	return cfg.Validate()
 }

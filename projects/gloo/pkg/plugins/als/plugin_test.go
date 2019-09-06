@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/als"
+	"github.com/solo-io/solo-kit/pkg/api/v1/resources/core"
 
 	. "github.com/solo-io/gloo/projects/gloo/pkg/plugins/als"
 	translatorutil "github.com/solo-io/gloo/projects/gloo/pkg/translator"
@@ -26,6 +27,131 @@ var _ = Describe("Plugin", func() {
 	)
 	Context("grpc", func() {
 
+		var (
+			params plugins.Params
+			usRef  core.ResourceRef
+
+			logName      string
+			extraHeaders []string
+		)
+
+		var checkConfig = func(al *envoyal.AccessLog) {
+			Expect(al.Name).To(Equal(envoyutil.HTTPGRPCAccessLog))
+			var falCfg envoyalcfg.HttpGrpcAccessLogConfig
+			err := translatorutil.ParseConfig(al, &falCfg)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(falCfg.AdditionalResponseTrailersToLog).To(Equal(extraHeaders))
+			Expect(falCfg.AdditionalResponseTrailersToLog).To(Equal(extraHeaders))
+			Expect(falCfg.AdditionalResponseTrailersToLog).To(Equal(extraHeaders))
+			Expect(falCfg.CommonConfig.LogName).To(Equal(logName))
+			envoyGrpc := falCfg.CommonConfig.GetGrpcService().GetEnvoyGrpc()
+			Expect(envoyGrpc).NotTo(BeNil())
+			Expect(envoyGrpc.ClusterName).To(Equal(translatorutil.UpstreamToClusterName(usRef)))
+		}
+
+		BeforeEach(func() {
+			logName = "test"
+			extraHeaders = []string{"test"}
+			usRef = core.ResourceRef{
+				Name:      "default",
+				Namespace: "default",
+			}
+			alsConfig = &als.AccessLoggingService{
+				AccessLog: []*als.AccessLog{
+					{
+						OutputDestination: &als.AccessLog_GrpcService{
+							GrpcService: &als.GrpcService{
+								LogName:                         logName,
+								ServerRef:                       &usRef,
+								AdditionalRequestHeadersToLog:   extraHeaders,
+								AdditionalResponseHeadersToLog:  extraHeaders,
+								AdditionalResponseTrailersToLog: extraHeaders,
+							},
+						},
+					},
+				},
+			}
+			params = plugins.Params{
+				Snapshot: &v1.ApiSnapshot{
+					Upstreams: v1.UpstreamList{
+						{
+							// UpstreamSpec: nil,
+							Metadata: core.Metadata{
+								Name:      usRef.Name,
+								Namespace: usRef.Namespace,
+							},
+						},
+					},
+				},
+			}
+		})
+		It("http", func() {
+			hl := &v1.HttpListener{}
+
+			in := &v1.Listener{
+				ListenerType: &v1.Listener_HttpListener{
+					HttpListener: hl,
+				},
+				Plugins: &v1.ListenerPlugins{
+					AccessLoggingService: alsConfig,
+				},
+			}
+
+			filters := []envoylistener.Filter{{
+				Name: envoyutil.HTTPConnectionManager,
+			}}
+
+			outl := &envoyapi.Listener{
+				FilterChains: []envoylistener.FilterChain{{
+					Filters: filters,
+				}},
+			}
+
+			p := NewPlugin()
+			err := p.ProcessListener(params, in, outl)
+			Expect(err).NotTo(HaveOccurred())
+
+			var cfg envoyhttp.HttpConnectionManager
+			err = translatorutil.ParseConfig(&filters[0], &cfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(cfg.AccessLog).To(HaveLen(1))
+			al := cfg.AccessLog[0]
+			checkConfig(al)
+		})
+		It("tcp", func() {
+			tl := &v1.TcpListener{}
+			in := &v1.Listener{
+				ListenerType: &v1.Listener_TcpListener{
+					TcpListener: tl,
+				},
+				Plugins: &v1.ListenerPlugins{
+					AccessLoggingService: alsConfig,
+				},
+			}
+
+			filters := []envoylistener.Filter{{
+				Name: envoyutil.TCPProxy,
+			}}
+
+			outl := &envoyapi.Listener{
+				FilterChains: []envoylistener.FilterChain{{
+					Filters: filters,
+				}},
+			}
+
+			p := NewPlugin()
+			err := p.ProcessListener(params, in, outl)
+			Expect(err).NotTo(HaveOccurred())
+
+			var cfg envoytcp.TcpProxy
+			err = translatorutil.ParseConfig(&filters[0], &cfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(cfg.AccessLog).To(HaveLen(1))
+			al := cfg.AccessLog[0]
+			checkConfig(al)
+		})
 	})
 
 	Context("file", func() {

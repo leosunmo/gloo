@@ -2,32 +2,45 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/fgrosse/zaptest"
 	"github.com/gogo/protobuf/types"
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"github.com/solo-io/gloo/projects/accesslog/pkg/runner"
 	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/als"
+	"github.com/solo-io/go-utils/contextutils"
+	"github.com/solo-io/solo-kit/pkg/api/v1/resources/core"
 
 	gatewayv2 "github.com/solo-io/gloo/projects/gateway/pkg/api/v2"
 	gloov1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
+	gloov1static "github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/static"
 	"github.com/solo-io/gloo/projects/gloo/pkg/defaults"
 	"github.com/solo-io/gloo/test/services"
 	"github.com/solo-io/gloo/test/v1helpers"
 	"github.com/solo-io/solo-kit/pkg/api/v1/clients"
 )
 
-var _ = Describe("Gateway", func() {
+var _ = FDescribe("Gateway", func() {
 
 	var (
+		gw *gatewayv2.Gateway
 		ctx            context.Context
 		cancel         context.CancelFunc
 		testClients    services.TestClients
+		settings       runner.Settings
 		writeNamespace string
+
+		baseAccessLogPort = uint32(27000)
 	)
 
 	Describe("in memory", func() {
@@ -92,17 +105,66 @@ var _ = Describe("Gateway", func() {
 				}
 			})
 
-			Context("Grpc", func() {
+			FContext("Grpc", func() {
 				var (
-					gw *gatewayv2.Gateway
+					usRef core.ResourceRef
 				)
 
 				BeforeEach(func() {
+
+					accessLogPort := atomic.AddUint32(&baseAccessLogPort, 1) + uint32(config.GinkgoConfig.ParallelNode*1000)
+
+					logger := zaptest.LoggerWriter(GinkgoWriter)
+					contextutils.SetFallbackLogger(logger.Sugar())
+					testClients.GlooPort = int(services.AllocateGlooPort())
+
+					accessLogAddress := "localhost"
+					if runtime.GOOS == "darwin" {
+						accessLogAddress = "host.docker.internal"
+					}
+
+					accessLogServer := &gloov1.Upstream{
+						Metadata: core.Metadata{
+							Name:      "extauth-server",
+							Namespace: "default",
+						},
+						UpstreamSpec: &gloov1.UpstreamSpec{
+							UseHttp2: true,
+							UpstreamType: &gloov1.UpstreamSpec_Static{
+								Static: &gloov1static.UpstreamSpec{
+									Hosts: []*gloov1static.Host{{
+										Addr: accessLogAddress,
+										Port: accessLogPort,
+									}},
+								},
+							},
+						},
+					}
+
+					_, err := testClients.UpstreamClient.Write(accessLogServer, clients.WriteOpts{OverwriteExisting: true})
+					Expect(err).NotTo(HaveOccurred())
+					usRef = accessLogServer.Metadata.Ref()
+
 					gatewaycli := testClients.GatewayClient
-					var err error
 					gw, err = gatewaycli.Read("gloo-system", "gateway", clients.ReadOpts{})
 					Expect(err).NotTo(HaveOccurred())
+
+					settings = runner.Settings{
+						GlooAddress: fmt.Sprintf("localhost:%d", testClients.GlooPort),
+						DebugPort:   0,
+						ServerPort:  int(accessLogPort),
+					}
+
+					go func(testctx context.Context) {
+						defer GinkgoRecover()
+						err := runner.RunWithSettings(testctx, settings)
+						if testctx.Err() == nil {
+							Expect(err).NotTo(HaveOccurred())
+						}
+					}(ctx)
+
 				})
+
 				AfterEach(func() {
 					gatewaycli := testClients.GatewayClient
 					var err error
@@ -113,12 +175,37 @@ var _ = Describe("Gateway", func() {
 					Expect(err).NotTo(HaveOccurred())
 				})
 
-				It("can stream access logs")
+				It("can stream access logs", func() {
+					gw.Plugins = &gloov1.ListenerPlugins{
+						AccessLoggingService: &als.AccessLoggingService{
+							AccessLog: []*als.AccessLog{
+								{
+									OutputDestination: &als.AccessLog_GrpcService{
+										GrpcService: &als.GrpcService{
+											ServerRef: &usRef,
+										},
+									},
+								},
+							},
+						},
+					}
+
+					gatewaycli := testClients.GatewayClient
+					_, err := gatewaycli.Write(gw, clients.WriteOpts{OverwriteExisting: true})
+					Expect(err).NotTo(HaveOccurred())
+
+					vs := getTrivialVirtualServiceForUpstream("default", usRef)
+					_, err = testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
+					Expect(err).NotTo(HaveOccurred())
+
+					for i := 0; i < 5; i++ {
+						TestUpstreamReachable()
+					}
+				})
 			})
 
 			Context("File", func() {
 				var (
-					gw   *gatewayv2.Gateway
 					path string
 				)
 
