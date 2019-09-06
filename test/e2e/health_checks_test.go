@@ -186,9 +186,6 @@ var _ = Describe("Health Checks", func() {
 		})
 	})
 
-	Context("outlier detection", func() {
-	})
-
 	Context("e2e + GRPC", func() {
 
 		BeforeEach(func() {
