@@ -61,8 +61,10 @@ var _ = Describe("Plugin", func() {
 					{
 						OutputDestination: &als.AccessLog_GrpcService{
 							GrpcService: &als.GrpcService{
-								LogName:                         logName,
-								ServerRef:                       &usRef,
+								LogName: logName,
+								ServiceRef: &als.GrpcService_StaticClusterName{
+									StaticClusterName: translatorutil.UpstreamToClusterName(usRef),
+								},
 								AdditionalRequestHeadersToLog:   extraHeaders,
 								AdditionalResponseHeadersToLog:  extraHeaders,
 								AdditionalResponseTrailersToLog: extraHeaders,

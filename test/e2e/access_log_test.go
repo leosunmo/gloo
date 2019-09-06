@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -17,23 +16,21 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	"github.com/solo-io/gloo/projects/accesslog/pkg/runner"
-	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/als"
-	"github.com/solo-io/go-utils/contextutils"
-	"github.com/solo-io/solo-kit/pkg/api/v1/resources/core"
-
 	gatewayv2 "github.com/solo-io/gloo/projects/gateway/pkg/api/v2"
 	gloov1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
-	gloov1static "github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/static"
+	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/als"
 	"github.com/solo-io/gloo/projects/gloo/pkg/defaults"
+	alsplugin "github.com/solo-io/gloo/projects/gloo/pkg/plugins/als"
 	"github.com/solo-io/gloo/test/services"
 	"github.com/solo-io/gloo/test/v1helpers"
+	"github.com/solo-io/go-utils/contextutils"
 	"github.com/solo-io/solo-kit/pkg/api/v1/clients"
 )
 
 var _ = FDescribe("Gateway", func() {
 
 	var (
-		gw *gatewayv2.Gateway
+		gw             *gatewayv2.Gateway
 		ctx            context.Context
 		cancel         context.CancelFunc
 		testClients    services.TestClients
@@ -94,9 +91,6 @@ var _ = FDescribe("Gateway", func() {
 
 				_, err = testClients.UpstreamClient.Write(tu.Upstream, clients.WriteOpts{})
 				Expect(err).NotTo(HaveOccurred())
-
-				err = envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
-				Expect(err).NotTo(HaveOccurred())
 			})
 
 			AfterEach(func() {
@@ -106,44 +100,16 @@ var _ = FDescribe("Gateway", func() {
 			})
 
 			FContext("Grpc", func() {
-				var (
-					usRef core.ResourceRef
-				)
-
 				BeforeEach(func() {
 
 					accessLogPort := atomic.AddUint32(&baseAccessLogPort, 1) + uint32(config.GinkgoConfig.ParallelNode*1000)
 
 					logger := zaptest.LoggerWriter(GinkgoWriter)
 					contextutils.SetFallbackLogger(logger.Sugar())
-					testClients.GlooPort = int(services.AllocateGlooPort())
 
-					accessLogAddress := "localhost"
-					if runtime.GOOS == "darwin" {
-						accessLogAddress = "host.docker.internal"
-					}
-
-					accessLogServer := &gloov1.Upstream{
-						Metadata: core.Metadata{
-							Name:      "extauth-server",
-							Namespace: "default",
-						},
-						UpstreamSpec: &gloov1.UpstreamSpec{
-							UseHttp2: true,
-							UpstreamType: &gloov1.UpstreamSpec_Static{
-								Static: &gloov1static.UpstreamSpec{
-									Hosts: []*gloov1static.Host{{
-										Addr: accessLogAddress,
-										Port: accessLogPort,
-									}},
-								},
-							},
-						},
-					}
-
-					_, err := testClients.UpstreamClient.Write(accessLogServer, clients.WriteOpts{OverwriteExisting: true})
+					envoyInstance.AccessLogPort = accessLogPort
+					err := envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
 					Expect(err).NotTo(HaveOccurred())
-					usRef = accessLogServer.Metadata.Ref()
 
 					gatewaycli := testClients.GatewayClient
 					gw, err = gatewaycli.Read("gloo-system", "gateway", clients.ReadOpts{})
@@ -162,7 +128,6 @@ var _ = FDescribe("Gateway", func() {
 							Expect(err).NotTo(HaveOccurred())
 						}
 					}(ctx)
-
 				})
 
 				AfterEach(func() {
@@ -182,7 +147,10 @@ var _ = FDescribe("Gateway", func() {
 								{
 									OutputDestination: &als.AccessLog_GrpcService{
 										GrpcService: &als.GrpcService{
-											ServerRef: &usRef,
+											LogName: "test-log",
+											ServiceRef: &als.GrpcService_StaticClusterName{
+												StaticClusterName: alsplugin.ClusterName,
+											},
 										},
 									},
 								},
@@ -194,12 +162,13 @@ var _ = FDescribe("Gateway", func() {
 					_, err := gatewaycli.Write(gw, clients.WriteOpts{OverwriteExisting: true})
 					Expect(err).NotTo(HaveOccurred())
 
-					vs := getTrivialVirtualServiceForUpstream("default", usRef)
+					vs := getTrivialVirtualServiceForUpstream("default", tu.Upstream.Metadata.Ref())
 					_, err = testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
 					Expect(err).NotTo(HaveOccurred())
 
-					for i := 0; i < 5; i++ {
+					for i := 0; i < 20; i++ {
 						TestUpstreamReachable()
+						time.Sleep(time.Second)
 					}
 				})
 			})
@@ -243,8 +212,10 @@ var _ = FDescribe("Gateway", func() {
 				}
 
 				BeforeEach(func() {
+					err := envoyInstance.RunWithRole(writeNamespace+"~gateway-proxy-v2", testClients.GlooPort)
+					Expect(err).NotTo(HaveOccurred())
+
 					gatewaycli := testClients.GatewayClient
-					var err error
 					gw, err = gatewaycli.Read("gloo-system", "gateway", clients.ReadOpts{})
 					Expect(err).NotTo(HaveOccurred())
 					path = "/dev/stdout"

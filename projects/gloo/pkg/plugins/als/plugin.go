@@ -15,6 +15,10 @@ import (
 	"github.com/solo-io/go-utils/errors"
 )
 
+const (
+	ClusterName = "access_log_cluster"
+)
+
 func NewPlugin() *Plugin {
 	return &Plugin{}
 }
@@ -134,21 +138,11 @@ func copyGrpcSettings(cfg *envoyalcfg.HttpGrpcAccessLogConfig, alsSettings *als.
 	if alsSettings.GrpcService == nil {
 		return errors.New("grpc service object cannot be nil")
 	}
-	upstreamRef := alsSettings.GrpcService.GetServerRef()
-	if upstreamRef == nil {
-		return errors.New("no access-log server configured")
-	}
-
-	// make sure the server exists:
-	_, err := params.Snapshot.Upstreams.Find(upstreamRef.Namespace, upstreamRef.Name)
-	if err != nil {
-		return errors.Wrapf(err, "access log upstream not found %s", upstreamRef.String())
-	}
 
 	svc := &envoycore.GrpcService{
 		TargetSpecifier: &envoycore.GrpcService_EnvoyGrpc_{
 			EnvoyGrpc: &envoycore.GrpcService_EnvoyGrpc{
-				ClusterName: translatorutil.UpstreamToClusterName(*alsSettings.GrpcService.GetServerRef()),
+				ClusterName: alsSettings.GrpcService.GetStaticClusterName(),
 			},
 		},
 	}

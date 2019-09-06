@@ -91,7 +91,7 @@ See here for more information: https://www.envoyproxy.io/docs/envoy/latest/api-v
 
 ```yaml
 "logName": string
-"serverRef": .core.solo.io.ResourceRef
+"staticClusterName": string
 "additionalRequestHeadersToLog": []string
 "additionalResponseHeadersToLog": []string
 "additionalResponseTrailersToLog": []string
@@ -101,7 +101,7 @@ See here for more information: https://www.envoyproxy.io/docs/envoy/latest/api-v
 | Field | Type | Description | Default |
 | ----- | ---- | ----------- |----------- | 
 | `logName` | `string` | name of log stream |  |
-| `serverRef` | [.core.solo.io.ResourceRef](../../../../../../../../solo-kit/api/v1/ref.proto.sk#resourceref) | The upstream to ask about auth decisions |  |
+| `staticClusterName` | `string` |  |  |
 | `additionalRequestHeadersToLog` | `[]string` |  |  |
 | `additionalResponseHeadersToLog` | `[]string` |  |  |
 | `additionalResponseTrailersToLog` | `[]string` |  |  |

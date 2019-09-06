@@ -68,7 +68,6 @@ func StartAccessLog(ctx context.Context, clientSettings Settings, service *serve
 	logger := contextutils.LoggerFrom(ctx)
 	logger.Infow("Starting access-log server")
 
-
 	addr := fmt.Sprintf(":%d", clientSettings.ServerPort)
 	runMode := "gRPC"
 	network := "tcp"

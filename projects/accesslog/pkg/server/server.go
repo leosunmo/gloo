@@ -1,18 +1,25 @@
 package server
 
 import (
-	envoyals2 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v2"
+	"fmt"
+
+	envoyals "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v2"
 )
 
-// server is used to implement envoyauthv2.AuthorizationServer.
+// server is used to implement envoyals.AccessLogServiceServer.
 type Server struct {
 }
+var _ envoyals.AccessLogServiceServer = new(Server)
 
-func (server *Server) StreamAccessLogs(envoyals2.AccessLogService_StreamAccessLogsServer) error {
-	panic("implement me")
+func (server *Server) StreamAccessLogs(srv envoyals.AccessLogService_StreamAccessLogsServer) error {
+	msg, err := srv.Recv()
+	if err != nil {
+		return err
+	}
+	fmt.Println(msg)
+	return nil
 }
 
-var _ envoyals2.AccessLogServiceServer = &Server{}
 
 func NewServer() *Server {
 	var s Server
