@@ -10,11 +10,11 @@ import (
 type AlsCallback func(message *envoyals.StreamAccessLogsMessage) error
 type AlsCallbackList []AlsCallback
 
-
 type Server struct {
 	ordered   bool
 	callbacks AlsCallbackList
 }
+
 var _ envoyals.AccessLogServiceServer = new(Server)
 
 func (s *Server) StreamAccessLogs(srv envoyals.AccessLogService_StreamAccessLogsServer) error {
@@ -44,8 +44,7 @@ func (s *Server) StreamAccessLogs(srv envoyals.AccessLogService_StreamAccessLogs
 	return nil
 }
 
-
-func NewServer(ordered bool, cb ...AlsCallback ) *Server {
+func NewServer(ordered bool, cb ...AlsCallback) *Server {
 	return &Server{
 		ordered:   ordered,
 		callbacks: cb,

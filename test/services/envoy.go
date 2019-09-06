@@ -231,11 +231,11 @@ func (ef *EnvoyFactory) NewEnvoyInstance() (*EnvoyInstance, error) {
 	}
 
 	ei := &EnvoyInstance{
-		envoypath: ef.envoypath,
-		UseDocker: ef.useDocker,
-		GlooAddr:  gloo,
+		envoypath:     ef.envoypath,
+		UseDocker:     ef.useDocker,
+		GlooAddr:      gloo,
 		AccessLogAddr: gloo,
-		AdminPort: atomic.AddUint32(&adminPort, 1) + uint32(config.GinkgoConfig.ParallelNode*1000),
+		AdminPort:     atomic.AddUint32(&adminPort, 1) + uint32(config.GinkgoConfig.ParallelNode*1000),
 	}
 	ef.instances = append(ef.instances, ei)
 	return ei, nil
