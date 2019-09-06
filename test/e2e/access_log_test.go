@@ -94,7 +94,7 @@ var _ = Describe("Gateway", func() {
 
 			Context("Grpc", func() {
 				var (
-					gw   *gatewayv2.Gateway
+					gw *gatewayv2.Gateway
 				)
 
 				BeforeEach(func() {

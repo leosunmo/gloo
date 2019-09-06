@@ -128,7 +128,7 @@ func handleAccessLogPlugins(service *als.AccessLoggingService, logCfg []*envoyal
 	return logCfg, nil
 }
 
-func copyGrpcSettings(cfg *envoyalcfg.HttpGrpcAccessLogConfig, alsSettings *als.AccessLog_GrpcService, params plugins.Params,) error {
+func copyGrpcSettings(cfg *envoyalcfg.HttpGrpcAccessLogConfig, alsSettings *als.AccessLog_GrpcService, params plugins.Params) error {
 	if alsSettings.GrpcService == nil {
 		return errors.New("grpc service object cannot be nil")
 	}
@@ -154,8 +154,8 @@ func copyGrpcSettings(cfg *envoyalcfg.HttpGrpcAccessLogConfig, alsSettings *als.
 	cfg.AdditionalResponseHeadersToLog = alsSettings.GrpcService.AdditionalResponseHeadersToLog
 	cfg.AdditionalResponseTrailersToLog = alsSettings.GrpcService.AdditionalResponseTrailersToLog
 	cfg.CommonConfig = &envoyalcfg.CommonGrpcAccessLogConfig{
-		LogName:              alsSettings.GrpcService.LogName,
-		GrpcService:          svc,
+		LogName:     alsSettings.GrpcService.LogName,
+		GrpcService: svc,
 	}
 	return nil
 }
