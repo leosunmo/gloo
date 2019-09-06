@@ -193,7 +193,7 @@ var _ = FDescribe("Gateway", func() {
 						case msg := <-msgChan:
 							Expect(msg.Identifier.LogName).To(Equal(logName))
 						case <-time.After(1 * time.Second):
-							Fail("Did not recieve access log message after one second")
+							Fail("Did not receive access log message after one second")
 						}
 					}
 
