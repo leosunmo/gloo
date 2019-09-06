@@ -3,10 +3,11 @@ package helpers
 import (
 	"context"
 	"fmt"
-	kubeconverters "github.com/solo-io/gloo/projects/gloo/pkg/api/converters/kube"
 	"os"
 	"sync"
 	"time"
+
+	kubeconverters "github.com/solo-io/gloo/projects/gloo/pkg/api/converters/kube"
 
 	"github.com/hashicorp/consul/api"
 	vaultapi "github.com/hashicorp/vault/api"
