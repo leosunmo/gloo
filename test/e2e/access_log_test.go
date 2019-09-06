@@ -9,12 +9,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	envoyals "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v2"
 	"github.com/fgrosse/zaptest"
 	"github.com/gogo/protobuf/types"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"github.com/solo-io/gloo/projects/accesslog/pkg/loggingservice"
 	"github.com/solo-io/gloo/projects/accesslog/pkg/runner"
 	gatewayv2 "github.com/solo-io/gloo/projects/gateway/pkg/api/v2"
 	gloov1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
@@ -100,8 +102,13 @@ var _ = FDescribe("Gateway", func() {
 			})
 
 			FContext("Grpc", func() {
-				BeforeEach(func() {
 
+				var (
+					msgChan chan *envoyals.StreamAccessLogsMessage
+				)
+
+				BeforeEach(func() {
+					msgChan = make(chan *envoyals.StreamAccessLogsMessage, 20)
 					accessLogPort := atomic.AddUint32(&baseAccessLogPort, 1) + uint32(config.GinkgoConfig.ParallelNode*1000)
 
 					logger := zaptest.LoggerWriter(GinkgoWriter)
@@ -121,9 +128,18 @@ var _ = FDescribe("Gateway", func() {
 						ServerPort:  int(accessLogPort),
 					}
 
+					service := loggingservice.NewServer(true, func(message *envoyals.StreamAccessLogsMessage) error {
+						select {
+						case msgChan <- message:
+							return nil
+						case <-time.After(time.Second):
+							Fail("unable to send log message on channel")
+						}
+						return nil
+					})
 					go func(testctx context.Context) {
 						defer GinkgoRecover()
-						err := runner.RunWithSettings(testctx, settings)
+						err := runner.RunWithSettings(testctx, service, settings)
 						if testctx.Err() == nil {
 							Expect(err).NotTo(HaveOccurred())
 						}
@@ -141,13 +157,14 @@ var _ = FDescribe("Gateway", func() {
 				})
 
 				It("can stream access logs", func() {
+					logName := "test-log"
 					gw.Plugins = &gloov1.ListenerPlugins{
 						AccessLoggingService: &als.AccessLoggingService{
 							AccessLog: []*als.AccessLog{
 								{
 									OutputDestination: &als.AccessLog_GrpcService{
 										GrpcService: &als.GrpcService{
-											LogName: "test-log",
+											LogName: logName,
 											ServiceRef: &als.GrpcService_StaticClusterName{
 												StaticClusterName: alsplugin.ClusterName,
 											},
@@ -166,10 +183,20 @@ var _ = FDescribe("Gateway", func() {
 					_, err = testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
 					Expect(err).NotTo(HaveOccurred())
 
-					for i := 0; i < 20; i++ {
+					for i := 0; i < 10; i++ {
 						TestUpstreamReachable()
-						time.Sleep(time.Second)
+						time.Sleep(time.Second / 2)
 					}
+
+					for i := 0; i < 10; i++ {
+						select {
+						case msg := <-msgChan:
+							Expect(msg.Identifier.LogName).To(Equal(logName))
+						case <-time.After(1 * time.Second):
+							Fail("Did not recieve access log message after one second")
+						}
+					}
+
 				})
 			})
 
