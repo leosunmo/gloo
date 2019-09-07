@@ -35,7 +35,26 @@ func Run() {
 		stats.StartStatsServerWithPort(debugPort)
 	}
 
-	service := loggingservice.NewServer(false, nil)
+	opts := loggingservice.Options{
+		Callbacks: loggingservice.AlsCallbackList{
+			func(ctx context.Context, message *pb.StreamAccessLogsMessage) error {
+				logger := contextutils.LoggerFrom(ctx)
+				switch msg := message.GetLogEntries().(type) {
+				case *pb.StreamAccessLogsMessage_HttpLogs:
+					for _, v := range msg.HttpLogs.LogEntry {
+						logger.Debug(zap.Any("http_access_log", v))
+					}
+				case *pb.StreamAccessLogsMessage_TcpLogs:
+					for _, v := range msg.TcpLogs.LogEntry {
+						logger.Debug(zap.Any("tcp_access_log", v))
+					}
+				}
+				return nil
+			},
+		},
+		Ctx:       ctx,
+	}
+	service := loggingservice.NewServer(opts)
 
 	err := RunWithSettings(ctx, service, clientSettings)
 

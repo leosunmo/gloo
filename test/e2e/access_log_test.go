@@ -103,7 +103,7 @@ var _ = Describe("Gateway", func() {
 				}
 			})
 
-			FContext("Grpc", func() {
+			Context("Grpc", func() {
 
 				var (
 					msgChan chan *envoy_data_accesslog_v2.HTTPAccessLogEntry
@@ -130,20 +130,27 @@ var _ = Describe("Gateway", func() {
 						ServerPort:  int(accessLogPort),
 					}
 
-					service := loggingservice.NewServer(true, func(message *envoyals.StreamAccessLogsMessage) error {
-
-						httpLogs := message.GetHttpLogs()
-						Expect(httpLogs).NotTo(BeNil())
-						for _, v := range httpLogs.LogEntry {
-							select {
-							case msgChan <- v:
+					opts := loggingservice.Options{
+						Ordered:   true,
+						Callbacks: loggingservice.AlsCallbackList{
+							func(ctx context.Context, message *envoyals.StreamAccessLogsMessage) error {
+								httpLogs := message.GetHttpLogs()
+								Expect(httpLogs).NotTo(BeNil())
+								for _, v := range httpLogs.LogEntry {
+									select {
+									case msgChan <- v:
+										return nil
+									case <-time.After(time.Second):
+										Fail("unable to send log message on channel")
+									}
+								}
 								return nil
-							case <-time.After(time.Second):
-								Fail("unable to send log message on channel")
-							}
-						}
-						return nil
-					})
+							},
+						},
+						Ctx:       ctx,
+					}
+
+					service := loggingservice.NewServer(opts)
 					go func(testctx context.Context) {
 						defer GinkgoRecover()
 						err := runner.RunWithSettings(testctx, service, settings)
