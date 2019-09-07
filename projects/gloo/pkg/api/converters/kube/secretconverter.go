@@ -148,11 +148,11 @@ func (t *AwsSecretConverter) FromKubeSecret(ctx context.Context, rc *kubesecret.
 func (t *AwsSecretConverter) ToKubeSecret(ctx context.Context, rc *kubesecret.ResourceClient, resource resources.Resource) (*kubev1.Secret, error) {
 	glooSecret, ok := resource.(*v1.Secret)
 	if !ok {
-	  return nil, nil
+		return nil, nil
 	}
 	awsGlooSecret, ok := glooSecret.Kind.(*v1.Secret_Aws)
 	if !ok {
-	  return nil, nil
+		return nil, nil
 	}
 	objectMeta := kubeutils.ToKubeMeta(glooSecret.Metadata)
 	delete(objectMeta.Annotations, annotationKey)
@@ -172,8 +172,8 @@ func (t *AwsSecretConverter) ToKubeSecret(ctx context.Context, rc *kubesecret.Re
 		ObjectMeta: objectMeta,
 		Type:       kubev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			AwsAccessKeyName:    []byte(awsGlooSecret.Aws.AccessKey),
-			AwsSecretKeyName:    []byte(awsGlooSecret.Aws.SecretKey),
+			AwsAccessKeyName: []byte(awsGlooSecret.Aws.AccessKey),
+			AwsSecretKeyName: []byte(awsGlooSecret.Aws.SecretKey),
 		},
 	}
 	return kubeSecret, nil

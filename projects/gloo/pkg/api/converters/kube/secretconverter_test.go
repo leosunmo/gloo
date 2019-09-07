@@ -97,8 +97,8 @@ var _ = Describe("SecretConverter", func() {
 				Labels:    map[string]string{},
 			},
 			Data: map[string][]byte{
-				AwsAccessKeyName:    []byte(awsSecret.AccessKey),
-				AwsSecretKeyName:    []byte(awsSecret.SecretKey),
+				AwsAccessKeyName: []byte(awsSecret.AccessKey),
+				AwsSecretKeyName: []byte(awsSecret.SecretKey),
 			},
 		}
 		var awsConverter AwsSecretConverter
