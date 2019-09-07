@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	envoy_data_accesslog_v2 "github.com/envoyproxy/go-control-plane/envoy/data/accesslog/v2"
 	envoyals "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v2"
 	"github.com/fgrosse/zaptest"
 	"github.com/gogo/protobuf/types"
@@ -23,6 +24,7 @@ import (
 	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/plugins/als"
 	"github.com/solo-io/gloo/projects/gloo/pkg/defaults"
 	alsplugin "github.com/solo-io/gloo/projects/gloo/pkg/plugins/als"
+	"github.com/solo-io/gloo/projects/gloo/pkg/translator"
 	"github.com/solo-io/gloo/test/services"
 	"github.com/solo-io/gloo/test/v1helpers"
 	"github.com/solo-io/go-utils/contextutils"
@@ -101,14 +103,14 @@ var _ = Describe("Gateway", func() {
 				}
 			})
 
-			Context("Grpc", func() {
+			FContext("Grpc", func() {
 
 				var (
-					msgChan chan *envoyals.StreamAccessLogsMessage
+					msgChan chan *envoy_data_accesslog_v2.HTTPAccessLogEntry
 				)
 
 				BeforeEach(func() {
-					msgChan = make(chan *envoyals.StreamAccessLogsMessage, 20)
+					msgChan = make(chan *envoy_data_accesslog_v2.HTTPAccessLogEntry, 20)
 					accessLogPort := atomic.AddUint32(&baseAccessLogPort, 1) + uint32(config.GinkgoConfig.ParallelNode*1000)
 
 					logger := zaptest.LoggerWriter(GinkgoWriter)
@@ -129,11 +131,16 @@ var _ = Describe("Gateway", func() {
 					}
 
 					service := loggingservice.NewServer(true, func(message *envoyals.StreamAccessLogsMessage) error {
-						select {
-						case msgChan <- message:
-							return nil
-						case <-time.After(time.Second):
-							Fail("unable to send log message on channel")
+
+						httpLogs := message.GetHttpLogs()
+						Expect(httpLogs).NotTo(BeNil())
+						for _, v := range httpLogs.LogEntry {
+							select {
+							case msgChan <- v:
+								return nil
+							case <-time.After(time.Second):
+								Fail("unable to send log message on channel")
+							}
 						}
 						return nil
 					})
@@ -183,20 +190,10 @@ var _ = Describe("Gateway", func() {
 					_, err = testClients.VirtualServiceClient.Write(vs, clients.WriteOpts{})
 					Expect(err).NotTo(HaveOccurred())
 
-					for i := 0; i < 10; i++ {
-						TestUpstreamReachable()
-						time.Sleep(time.Second / 2)
-					}
-
-					for i := 0; i < 10; i++ {
-						select {
-						case msg := <-msgChan:
-							Expect(msg.Identifier.LogName).To(Equal(logName))
-						case <-time.After(1 * time.Second):
-							Fail("Did not receive access log message after one second")
-						}
-					}
-
+					TestUpstreamReachable()
+					var entry *envoy_data_accesslog_v2.HTTPAccessLogEntry
+					Eventually(msgChan).Should(Receive(&entry))
+					Expect(entry.CommonProperties.UpstreamCluster).To(Equal(translator.UpstreamToClusterName(tu.Upstream.Metadata.Ref())))
 				})
 			})
 
