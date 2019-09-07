@@ -61,7 +61,7 @@ func StartAccessLog(ctx context.Context, clientSettings Settings, service *loggi
 	srv := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
 
 	pb.RegisterAccessLogServiceServer(srv, service)
-	hc := healthchecker.NewGrpc(health.NewServer())
+	hc := healthchecker.NewGrpc("AccessLog", health.NewServer())
 	healthpb.RegisterHealthServer(srv, hc.GetServer())
 	reflection.Register(srv)
 
