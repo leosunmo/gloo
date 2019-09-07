@@ -116,7 +116,6 @@ type AwsSecretConverter struct{}
 var _ kubesecret.SecretConverter = &AwsSecretConverter{}
 
 const (
-	AwsNestedConfigName = "aws"
 	AwsAccessKeyName    = "aws_access_key_id"
 	AwsSecretKeyName    = "aws_secret_access_key"
 )
