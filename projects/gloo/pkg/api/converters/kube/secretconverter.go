@@ -116,8 +116,8 @@ type AwsSecretConverter struct{}
 var _ kubesecret.SecretConverter = &AwsSecretConverter{}
 
 const (
-	AwsAccessKeyName    = "aws_access_key_id"
-	AwsSecretKeyName    = "aws_secret_access_key"
+	AwsAccessKeyName = "aws_access_key_id"
+	AwsSecretKeyName = "aws_secret_access_key"
 )
 
 func (t *AwsSecretConverter) FromKubeSecret(ctx context.Context, rc *kubesecret.ResourceClient, secret *kubev1.Secret) (resources.Resource, error) {
