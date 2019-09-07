@@ -29,7 +29,7 @@ import (
 	"github.com/solo-io/solo-kit/pkg/api/v1/clients"
 )
 
-var _ = FDescribe("Gateway", func() {
+var _ = Describe("Gateway", func() {
 
 	var (
 		gw             *gatewayv2.Gateway
@@ -101,7 +101,7 @@ var _ = FDescribe("Gateway", func() {
 				}
 			})
 
-			FContext("Grpc", func() {
+			Context("Grpc", func() {
 
 				var (
 					msgChan chan *envoyals.StreamAccessLogsMessage
