@@ -146,36 +146,35 @@ func (t *AwsSecretConverter) FromKubeSecret(ctx context.Context, rc *kubesecret.
 }
 
 func (t *AwsSecretConverter) ToKubeSecret(ctx context.Context, rc *kubesecret.ResourceClient, resource resources.Resource) (*kubev1.Secret, error) {
-	if glooSecret, ok := resource.(*v1.Secret); ok {
-		if awsGlooSecret, ok := glooSecret.Kind.(*v1.Secret_Aws); ok {
-			objectMeta := kubeutils.ToKubeMeta(glooSecret.Metadata)
-			delete(objectMeta.Annotations, annotationKey)
-			if len(objectMeta.Annotations) == 0 {
-				objectMeta.Annotations = nil
-			}
-			awsBytes, err := protoutils.MarshalBytes(awsGlooSecret.Aws)
-			if err != nil {
-				return nil, err
-			}
-			awsBytes, err = yaml.JSONToYAML(awsBytes)
-			if err != nil {
-				return nil, err
-			}
-
-			kubeSecret := &kubev1.Secret{
-				ObjectMeta: objectMeta,
-				Type:       kubev1.SecretTypeOpaque,
-				Data: map[string][]byte{
-					// duplicate aws creds in the original nested structure that gloo expects but also
-					// flatten it to make easier to use in other k8s resources (e.g., mount as pod env vars)
-					AwsNestedConfigName: awsBytes,
-					AwsAccessKeyName:    []byte(awsGlooSecret.Aws.AccessKey),
-					AwsSecretKeyName:    []byte(awsGlooSecret.Aws.SecretKey),
-				},
-			}
-			return kubeSecret, nil
-		}
+	glooSecret, ok := resource.(*v1.Secret)
+	if !ok {
+	  return nil, nil
+	}
+	awsGlooSecret, ok := glooSecret.Kind.(*v1.Secret_Aws)
+	if !ok {
+	  return nil, nil
+	}
+	objectMeta := kubeutils.ToKubeMeta(glooSecret.Metadata)
+	delete(objectMeta.Annotations, annotationKey)
+	if len(objectMeta.Annotations) == 0 {
+		objectMeta.Annotations = nil
+	}
+	awsBytes, err := protoutils.MarshalBytes(awsGlooSecret.Aws)
+	if err != nil {
+		return nil, err
+	}
+	awsBytes, err = yaml.JSONToYAML(awsBytes)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, nil
+	kubeSecret := &kubev1.Secret{
+		ObjectMeta: objectMeta,
+		Type:       kubev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			AwsAccessKeyName:    []byte(awsGlooSecret.Aws.AccessKey),
+			AwsSecretKeyName:    []byte(awsGlooSecret.Aws.SecretKey),
+		},
+	}
+	return kubeSecret, nil
 }

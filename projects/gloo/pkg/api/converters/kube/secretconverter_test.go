@@ -3,9 +3,6 @@ package kubeconverters_test
 import (
 	"context"
 
-	"github.com/solo-io/go-utils/protoutils"
-	"sigs.k8s.io/yaml"
-
 	"github.com/solo-io/solo-kit/pkg/api/v1/clients/kubesecret"
 	"github.com/solo-io/solo-kit/pkg/api/v1/resources"
 
@@ -14,7 +11,7 @@ import (
 
 	. "github.com/solo-io/gloo/projects/gloo/pkg/api/converters/kube"
 	v1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
-	core "github.com/solo-io/solo-kit/pkg/api/v1/resources/core"
+	"github.com/solo-io/solo-kit/pkg/api/v1/resources/core"
 	kubev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -87,13 +84,11 @@ var _ = Describe("SecretConverter", func() {
 
 	})
 
-	It("should round trip kube aws secret back to kube aws secret", func() {
+	It("should round trip kube aws secret to gloo aws secret and back to kube aws secret", func() {
 		awsSecret := &v1.AwsSecret{
 			AccessKey: "access",
 			SecretKey: "secret",
 		}
-		awsBytes, _ := protoutils.MarshalBytes(awsSecret)
-		awsBytes, _ = yaml.JSONToYAML(awsBytes)
 		kubeSecret := &kubev1.Secret{
 			Type: kubev1.SecretTypeOpaque,
 			ObjectMeta: metav1.ObjectMeta{
@@ -102,7 +97,6 @@ var _ = Describe("SecretConverter", func() {
 				Labels:    map[string]string{},
 			},
 			Data: map[string][]byte{
-				AwsNestedConfigName: awsBytes,
 				AwsAccessKeyName:    []byte(awsSecret.AccessKey),
 				AwsSecretKeyName:    []byte(awsSecret.SecretKey),
 			},
