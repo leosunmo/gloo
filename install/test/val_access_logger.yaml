@@ -1,0 +1,23 @@
+#gatewayProxies:
+#  gatewayProxyV2:
+#    accessLogger:
+#      port: 8083
+#      serviceName: AccessLog
+#      image:
+#        repository: access-logger
+#      replicas: 1
+gatewayProxies:
+  gatewayProxyV2:
+    accessLogger:
+      port: 8083
+      serviceName: AccessLog
+      image:
+        repository: access-logger
+        tag: dev
+      replicas: 1
+#gatewayProxies:
+#  gatewayProxyV2:
+#    tracing:
+#      provider:
+#        trace: spec
+#        another: line

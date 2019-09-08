@@ -1,6 +1,10 @@
 {{- if .Values.gateway.enabled }}
 {{- range $name, $spec := .Values.gatewayProxies }}
 {{- if $spec.accessLogger }}
+{{ $serverPort := 8083 }}
+{{- if $spec.accessLogger.port }}
+{{ $serverPort := $spec.accessLogger.port }}
+{{- end}} # if $spec.accessLogger.port
 ---
 apiVersion: v1
 kind: Service
@@ -13,12 +17,10 @@ metadata:
   namespace: {{ $.Release.Namespace }}
 spec:
   ports:
-  - port: {{ $spec.service.httpPort }}
-    targetPort: {{ $spec.podTemplate.httpPort }}
+  - port: {{ $serverPort }}
+    targetPort: {{ $serverPort }}
     protocol: TCP
     name: http
-  selector:
-    gateway-proxy-id: {{ $name | kebabcase }}
 {{- end }} # if $spec.accessLogger
 {{- end }} # range $name, $spec := .Values.gatewayProxies
 {{ end }} # if .Values.gateway.enabled
