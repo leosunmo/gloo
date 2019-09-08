@@ -153,6 +153,7 @@ type GatewayProxy struct {
 	ConfigMap             *GatewayProxyConfigMap   `json:"configMap,omitempty"`
 	Service               *GatewayProxyService     `json:"service,omitempty"`
 	Tracing               *Tracing                 `json:"tracing,omitempty"`
+	AccessLogger          *AccessLogger            `json:"accessLogger,omitempty"`
 	ExtraContainersHelper string                   `json:"extraContainersHelper,omitempty"`
 	Stats                 bool                     `json:"stats" desc:"enable prometheus stats"`
 	ReadConfig            bool                     `json:"readConfig" desc:"expose a read-only subset of the envoy admin api"`
@@ -198,6 +199,13 @@ type GatewayProxyService struct {
 type Tracing struct {
 	Provider string `json:"provider,omitempty"`
 	Cluster  string `json:"cluster,omitempty"`
+}
+
+type AccessLogger struct {
+	Image       *Image `json:"image,omitempty"`
+	Port        string `json:"port,omitempty"`
+	ServiceName string `json:"serviceName,omitempty"`
+	*DeploymentSpec
 }
 
 type GatewayProxyConfigMap struct {

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/solo-io/gloo/projects/accesslog/pkg/runner"
+	"github.com/solo-io/gloo/projects/accesslogger/pkg/runner"
 	"github.com/solo-io/go-utils/stats"
 )
 

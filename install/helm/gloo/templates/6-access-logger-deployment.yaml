@@ -1,0 +1,68 @@
+{{- if .Values.gateway.updateValues -}}
+{{- include "gloo.updatevalues" . -}}
+{{- end -}}
+{{- if .Values.gateway.enabled }}
+{{- $topScope := . }}
+{{- $global := .Values.global }}
+{{- $isUpgrade := .Values.gateway.upgrade }}
+{{- range $name, $spec := .Values.gatewayProxies }}
+{{- $image := $spec.podTemplate.image }}
+{{- if $global }}
+{{- $image = merge $spec.podTemplate.image $global.image }}
+{{- end }}
+---
+{{- if $spec.accessLogger }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: gloo
+    gloo: gateway-proxy-access-logger
+    gateway-proxy-id: {{ $name | kebabcase }}
+  name: {{ $name | kebabcase }}-access-logger
+  namespace: {{ $.Release.Namespace }}
+spec:
+  replicas: {{ $spec.accessLogger.deployment.replicas }}
+  selector:
+    matchLabels:
+      gloo: gateway-proxy-access-logger
+      gateway-proxy-id: {{ $name | kebabcase }}
+  template:
+    metadata:
+      labels:
+        gloo: gateway-proxy-access-logger
+        gateway-proxy-id: {{ $name | kebabcase }}
+    spec:
+      serviceAccountName: gateway-proxy
+      containers:
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+{{- if $spec.accessLogger.serviceName }}
+        - name: SERVICE_NAME
+          value: $spec.accessLogger.serviceName
+{{- end}} # if $spec.accessLogger.serviceName
+{{- if $spec.accessLogger.port }}
+        - name: SERVER_PORT
+          value: $spec.accessLogger.port
+{{- end}} # if $spec.accessLogger.port
+        image: {{ template "gloo.image" $image }}
+        imagePullPolicy: {{ $image.pullPolicy }}
+        name: {{ $name | kebabcase }}
+        ports:
+{{- if $spec.accessLogger.port }}
+        - containerPort: {{ $spec.accessLogger.port }}
+{{ else }}
+        - containerPort: 8083
+{{- end}} # if $spec.accessLogger.port
+          name: http
+          protocol: TCP
+{{- end }} # if $spec.accessLogger
+{{- end }} # range $name, $spec := .Values.gatewayProxies
+{{- end }} # if .Values.gateway.enabled

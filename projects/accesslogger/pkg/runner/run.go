@@ -7,7 +7,7 @@ import (
 
 	pb "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v2"
 	"github.com/solo-io/gloo/pkg/healthchecker"
-	"github.com/solo-io/gloo/projects/accesslog/pkg/loggingservice"
+	"github.com/solo-io/gloo/projects/accesslogger/pkg/loggingservice"
 	"github.com/solo-io/go-utils/contextutils"
 	"github.com/solo-io/go-utils/stats"
 	"go.opencensus.io/plugin/ocgrpc"
@@ -25,7 +25,7 @@ func init() {
 
 func Run() {
 	clientSettings := NewSettings()
-	ctx := context.Background()
+	ctx := contextutils.WithLogger(context.Background(), "access_log")
 
 	if clientSettings.DebugPort != 0 {
 
@@ -67,8 +67,6 @@ func Run() {
 }
 
 func RunWithSettings(ctx context.Context, service *loggingservice.Server, clientSettings Settings) error {
-	ctx = contextutils.WithLogger(ctx, "extauth")
-
 	err := StartAccessLog(ctx, clientSettings, service)
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -80,7 +78,7 @@ func StartAccessLog(ctx context.Context, clientSettings Settings, service *loggi
 	srv := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
 
 	pb.RegisterAccessLogServiceServer(srv, service)
-	hc := healthchecker.NewGrpc("AccessLog", health.NewServer())
+	hc := healthchecker.NewGrpc(clientSettings.ServiceName, health.NewServer())
 	healthpb.RegisterHealthServer(srv, hc.GetServer())
 	reflection.Register(srv)
 
