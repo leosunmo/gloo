@@ -125,20 +125,20 @@ data:
           tcp_keepalive: {}
         type: STRICT_DNS
         respect_dns_ttl: true
-{{- if $spec.accessLogger }}
+{{- if $.Values.accessLogger }}
       - name: access_log_cluster
         connect_timeout: 5.000s
         hosts:
         - socket_address:
             address: {{ $name | kebabcase }}-access-logger.{{ $.Release.Namespace }}.svc.{{ $.Values.k8s.clusterName}}
-{{- if $spec.accessLogger.port }}
-            port_value: {{$spec.accessLogger.port}}
+{{- if $.Values.accessLogger.port }}
+            port_value: {{$.Values.accessLogger.port}}
 {{- else -}}
             port_value: 8083
-{{- end}}# if $spec.accessLogger.port
+{{- end}}# if $.Values.accessLogger.port
         http2_protocol_options: {}
         type: STRICT_DNS
-{{- end}}# if $spec.accessLogger
+{{- end}}# if $.Values.accessLogger
 {{- if $spec.tracing -}}
 {{- if $spec.tracing.cluster}}
 {{ toYaml $spec.tracing.cluster | indent 6}}

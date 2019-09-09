@@ -52,7 +52,7 @@ func Run() {
 				return nil
 			},
 		},
-		Ctx:       ctx,
+		Ctx: ctx,
 	}
 	service := loggingservice.NewServer(opts)
 

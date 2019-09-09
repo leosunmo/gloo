@@ -21,6 +21,7 @@ type Config struct {
 	IngressProxy   *IngressProxy           `json:"ingressProxy,omitempty"`
 	K8s            *K8s                    `json:"k8s,omitempty"`
 	ApiServer      *ApiServer              `json:"apiServer,omitempty"`
+	AccessLogger   *AccessLogger           `json:"accessLogger,omitempty"`
 }
 
 type Global struct {
@@ -153,7 +154,6 @@ type GatewayProxy struct {
 	ConfigMap             *GatewayProxyConfigMap   `json:"configMap,omitempty"`
 	Service               *GatewayProxyService     `json:"service,omitempty"`
 	Tracing               *Tracing                 `json:"tracing,omitempty"`
-	AccessLogger          *AccessLogger            `json:"accessLogger,omitempty"`
 	ExtraContainersHelper string                   `json:"extraContainersHelper,omitempty"`
 	Stats                 bool                     `json:"stats" desc:"enable prometheus stats"`
 	ReadConfig            bool                     `json:"readConfig" desc:"expose a read-only subset of the envoy admin api"`

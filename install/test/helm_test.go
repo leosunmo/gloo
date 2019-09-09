@@ -114,12 +114,8 @@ var _ = Describe("Helm Test", func() {
 				)
 				BeforeEach(func() {
 					labels = map[string]string{
-						"app":              "gloo",
-						"gloo":             "gateway-proxy-access-logger",
-						"gateway-proxy-id": "gateway-proxy-v2",
-					}
-					selector = map[string]string{
-						"gateway-proxy-id": "gateway-proxy-v2",
+						"app":  "gloo",
+						"gloo": "gateway-proxy-v2-access-logger",
 					}
 				})
 

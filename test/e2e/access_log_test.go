@@ -131,7 +131,7 @@ var _ = Describe("Gateway", func() {
 					}
 
 					opts := loggingservice.Options{
-						Ordered:   true,
+						Ordered: true,
 						Callbacks: loggingservice.AlsCallbackList{
 							func(ctx context.Context, message *envoyals.StreamAccessLogsMessage) error {
 								httpLogs := message.GetHttpLogs()
@@ -147,7 +147,7 @@ var _ = Describe("Gateway", func() {
 								return nil
 							},
 						},
-						Ctx:       ctx,
+						Ctx: ctx,
 					}
 
 					service := loggingservice.NewServer(opts)

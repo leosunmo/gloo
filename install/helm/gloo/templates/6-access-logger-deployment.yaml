@@ -1,43 +1,33 @@
-{{- if .Values.gateway.updateValues -}}
-{{- include "gloo.updatevalues" . -}}
-{{- end -}}
 {{- if .Values.gateway.enabled }}
-{{- $topScope := . }}
-{{- $global := .Values.global }}
-{{- $isUpgrade := .Values.gateway.upgrade }}
-{{- range $name, $spec := .Values.gatewayProxies }}
----
-{{- if $spec.accessLogger }}
+{{- if .Values.accessLogger }}
 {{ $serverPort := 8083 }}
-{{- if $spec.accessLogger.port }}
-{{ $serverPort := $spec.accessLogger.port }}
-{{- end}} # if $spec.accessLogger.port
-{{- $image := $spec.accessLogger.image }}
-{{- if $global }}
-{{- $image = merge $spec.accessLogger.image $global.image }}
-{{- end }}# if $global
+{{- if .Values.accessLogger.port }}
+{{ $serverPort := .Values.accessLogger.port }}
+{{- end}} # if .Values.accessLogger.port
+{{- $image := .Values.accessLogger.image }}
+{{- if .Values.global  }}
+{{- $image = merge .Values.accessLogger.image .Values.global.image }}
+{{- end }}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     app: gloo
-    gloo: gateway-proxy-access-logger
-    gateway-proxy-id: {{ $name | kebabcase }}
-  name: {{ $name | kebabcase }}-access-logger
+    gloo: gateway-proxy-v2-access-logger
+  name: gateway-proxy-v2-access-logger
   namespace: {{ $.Release.Namespace }}
 spec:
-  replicas: {{ $spec.accessLogger.replicas }}
+  replicas: {{ .Values.accessLogger.replicas }}
   selector:
     matchLabels:
       app: gloo
-      gloo: gateway-proxy-access-logger
-      gateway-proxy-id: {{ $name | kebabcase }}
+      gloo: gateway-proxy-v2-access-logger
   template:
     metadata:
       labels:
         app: gloo
-        gloo: gateway-proxy-access-logger
-        gateway-proxy-id: {{ $name | kebabcase }}
+        gloo: gateway-proxy-v2-access-logger
     spec:
       serviceAccountName: gateway-proxy
       containers:
@@ -53,16 +43,15 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
-{{- if $spec.accessLogger.serviceName }}
+{{- if .Values.accessLogger.serviceName }}
           - name: SERVICE_NAME
-            value: {{$spec.accessLogger.serviceName}}
-{{- end }} # if $spec.accessLogger.serviceName
+            value: {{.Values.accessLogger.serviceName}}
+{{- end }} # if .Values.accessLogger.serviceName
           - name: SERVER_PORT
             value: "{{ $serverPort }}"
           ports:
           - containerPort: {{ $serverPort }}
             name: http
             protocol: TCP
-{{- end }} # if $spec.accessLogger
-{{- end }} # range $name, $spec := .Values.gatewayProxies
+{{- end }} # if .Values.accessLogger
 {{- end }} # if .Values.gateway.enabled
