@@ -1,0 +1,22 @@
+apiVersion: gateway.solo.io.v2/v2
+kind: Gateway
+metadata:
+  annotations:
+    origin: default
+  clusterName: ""
+  name: private-gateway
+  namespace: gloo-system
+spec:
+  bindAddress: '::'
+  bindPort: 8080
+  proxyNames:
+  - private-proxy
+  httpGateway:
+    plugins:
+      healthCheck:
+        path: /healthz
+    virtualServiceSelector:
+      gloo-gateway: private # We're using labesl to load VirtualServices
+                            # The VirtualServices have to be in the same 
+                            # namespace as the Gateway resources, gloo-system
+                            # in our case.

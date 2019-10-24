@@ -1,0 +1,32 @@
+# Private backend service
+apiVersion: gateway.solo.io/v1
+kind: VirtualService
+metadata:
+  name: backend-service
+  namespace: gloo-system
+  labels:
+    gloo-gateway: private
+spec:
+  displayName: backend
+  virtualHost:
+    corsPolicy:
+      allowCredentials: true
+      allowHeaders:
+      - Content-Type,Authorization,X-User-Agent
+      allowOrigin:
+      - '*'
+      exposeHeaders:
+      - WWW-Authenticate
+      maxAge: 1d
+    domains:
+    - backend.int.example.org
+    routes:
+    - matcher:
+        methods: []
+        prefix: /
+      routeAction:
+        single:
+          upstream:
+            name: private-backend-80
+            namespace: gloo-system
+

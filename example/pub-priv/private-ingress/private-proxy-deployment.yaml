@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: private-proxy
+    gloo: private-proxy
+  name: private-proxy
+  namespace: private-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      gloo: private-proxy
+      private-proxy: production
+  template:
+    metadata:
+      labels:
+        gloo: private-proxy
+        private-proxy: production
+#      annotations:
+#        solo.io/path: /metrics
+#        solo.io/port: "8081"
+#        solo.io/scrape: "true"
+    spec:
+      terminationGracePeriodSeconds: 70 # Your longest lived connection
+                                        # plus a few seconds, for connection draining
+      containers:
+      - image: quay.io/solo-io/gloo-envoy-wrapper:0.20.8
+        imagePullPolicy: Always
+        name: private-proxy
+        args: ["--disable-hot-restart"]
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: metrics
+          protocol: TCP
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /etc/envoy
+          name: envoy-config
+      volumes:
+      - configMap:
+          name: private-proxy-envoy-config
+        name: envoy-config
+---

@@ -1,0 +1,89 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: gloo-gateway-controller
+    gloo: gateway-controller
+  name: gateway-controller
+  namespace: gloo-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      gloo: gateway-controller
+  template:
+    metadata:
+      labels:
+        gloo: gateway-controller
+    spec:
+      containers:
+      - image: "quay.io/solo-io/gateway:0.20.8"
+        imagePullPolicy: Always
+        name: gateway-controller
+        ports:
+          - containerPort: 8443
+            name: https
+            protocol: TCP
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10101
+          capabilities:
+            drop:
+            - ALL
+        env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: START_STATS_SERVER
+            value: "true"
+          - name: VALIDATION_MUST_START
+            value: "true"
+        volumeMounts:
+          - mountPath: /etc/gateway/validation-certs
+            name: validation-certs
+        readinessProbe:
+          tcpSocket:
+            port: 8443
+          initialDelaySeconds: 1
+          periodSeconds: 2
+          failureThreshold: 10
+      volumes:
+        - name: validation-certs
+          secret:
+            defaultMode: 420
+            secretName: gateway-validation-certs
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: gloo
+    gloo: gateway-certgen
+  name: gateway-certgen
+  namespace: gloo-system
+spec:
+  template:
+    metadata:
+      labels:
+        gloo: gateway-certgen
+    spec:
+      serviceAccountName: gateway-certgen
+      containers:
+        - image: quay.io/solo-io/certgen:0.20.8
+          imagePullPolicy: IfNotPresent
+          name: certgen
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          args:
+            - "--secret-name=gateway-validation-certs"
+            - "--svc-name=gateway-controller"
+            - "--validating-webhook-configuration-name=gloo-gateway-validation-webhook-gloo-system"
+      restartPolicy: OnFailure
+---

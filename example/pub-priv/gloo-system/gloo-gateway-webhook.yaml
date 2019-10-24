@@ -1,0 +1,22 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: gloo-gateway-validation-webhook-gloo-system
+  labels:
+    app: gloo
+    gloo: gateway
+webhooks:
+  - name: gateway-controller.gloo-system.svc  # must be a domain with at least three segments separated by dots
+    clientConfig:
+      service:
+        name: gateway-controller
+        namespace: gloo-system
+        path: "/validation"
+      caBundle: "" # update manually or use certgen job
+    rules:
+      - operations: [ "CREATE", "UPDATE", "DELETE" ]
+        apiGroups: ["gateway.solo.io", "gateway.solo.io.v2"]
+        apiVersions: ["v1", "v2"]
+        resources: ["*"]
+    failurePolicy: Ignore
+

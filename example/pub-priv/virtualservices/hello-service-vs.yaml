@@ -1,0 +1,31 @@
+# Public Hello service
+apiVersion: gateway.solo.io/v1
+kind: VirtualService
+metadata:
+  name: hello-service
+  namespace: gloo-system
+  labels:
+    gloo-gateway: public
+spec:
+  displayName: hello-service
+  virtualHost:
+    corsPolicy:
+      allowCredentials: true
+      allowHeaders:
+      - Content-Type,Authorization,X-User-Agent
+      allowOrigin:
+      - '*'
+      exposeHeaders:
+      - WWW-Authenticate
+      maxAge: 1d
+    domains:
+    - hello.example.org
+    routes:
+    - matcher:
+        methods: []
+        prefix: /
+      routeAction:
+        single:
+          upstream:
+            name: production-hello-service-80
+            namespace: gloo-system

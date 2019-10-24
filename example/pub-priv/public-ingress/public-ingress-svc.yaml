@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: public-proxy
+    gloo: public-proxy
+  name: public-proxy
+  namespace: public-ingress
+spec:
+  type: NodePort
+  ports:
+  - name: http
+    nodePort: 31080
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    nodePort: 31443
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+  selector:
+    gloo: public-proxy
+    public-proxy: production  # We can use this to select 
+                              # a gloo proxy to forward to,
+                              # useful for testing or green/blue deploys
